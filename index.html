@@ -1,0 +1,2144 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Clarity Weather | Plain-English Forecast & Metric Decoder</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#f0f9ff',
+                            100: '#e0f2fe',
+                            500: '#0284c7',
+                            600: '#0369a1',
+                            700: '#035485',
+                            900: '#0c4a6e',
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.75);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+        }
+        .dark .glass-panel {
+            background: rgba(15, 23, 42, 0.75);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+        .custom-scrollbar::-webkit-scrollbar { height: 6px; width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(156, 163, 175, 0.4); border-radius: 9999px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(156, 163, 175, 0.6); }
+        .meter-bar { transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1); }
+    </style>
+</head>
+<body class="bg-slate-100 dark:bg-slate-950 text-slate-800 dark:text-slate-100 min-h-screen transition-colors duration-300 pb-16">
+
+    <!-- Top Navigation Header -->
+    <header class="sticky top-0 z-40 glass-panel border-b border-slate-200 dark:border-slate-800 shadow-sm">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
+            <!-- Logo & Brand -->
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-sky-500 to-indigo-600 flex items-center justify-center text-white shadow-lg shadow-sky-500/20">
+                    <i data-lucide="cloud-sun" class="w-6 h-6"></i>
+                </div>
+                <div>
+                    <h1 class="font-bold text-lg leading-tight tracking-tight flex items-center gap-2">
+                        Clarity<span class="text-sky-500">Weather</span>
+                    </h1>
+                    <p class="text-xs text-slate-500 dark:text-slate-400 hidden sm:block">Plain-English Weather & Actionable Advice</p>
+                </div>
+            </div>
+
+            <!-- Global Search Bar -->
+            <div class="relative flex-1 max-w-md">
+                <div class="relative flex items-center">
+                    <i data-lucide="search" class="w-4 h-4 absolute left-3 text-slate-400"></i>
+                    <input type="text" id="searchInput" placeholder="Search city (e.g., Tokyo, London, New York)..." 
+                        class="w-full pl-9 pr-24 py-2 text-sm bg-slate-200/70 dark:bg-slate-900/80 border border-transparent focus:border-sky-500 rounded-full focus:outline-none focus:ring-2 focus:ring-sky-500/30 text-slate-900 dark:text-slate-100 placeholder-slate-400">
+                    <button id="locBtn" title="Use current location" class="absolute right-2 text-xs bg-sky-500 hover:bg-sky-600 text-white font-medium px-2.5 py-1 rounded-full flex items-center gap-1 transition-all">
+                        <i data-lucide="locate" class="w-3.5 h-3.5"></i>
+                        <span class="hidden md:inline">Near Me</span>
+                    </button>
+                </div>
+                <!-- Search Autocomplete Dropdown -->
+                <div id="searchResults" class="hidden absolute top-full left-0 right-0 mt-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-xl overflow-hidden z-50 divide-y divide-slate-100 dark:divide-slate-800">
+                </div>
+            </div>
+
+            <!-- Header Actions & Toggles -->
+            <div class="flex items-center gap-2">
+                <!-- Favorites Modal Button -->
+                <button id="favDrawerBtn" title="Saved Cities" class="p-2 rounded-xl bg-slate-200/60 dark:bg-slate-800/80 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition-colors relative">
+                    <i data-lucide="bookmark" class="w-5 h-5"></i>
+                    <span id="favCountBadge" class="hidden absolute -top-1 -right-1 w-4 h-4 bg-sky-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">0</span>
+                </button>
+
+                <!-- Comparison Tool Button -->
+                <button id="compareBtn" title="Compare Cities" class="p-2 rounded-xl bg-slate-200/60 dark:bg-slate-800/80 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition-colors">
+                    <i data-lucide="columns" class="w-5 h-5"></i>
+                </button>
+
+                <!-- Glossary / Help Modal Button -->
+                <button id="glossaryBtn" title="Weather Glossary & Metric Guide" class="p-2 rounded-xl bg-slate-200/60 dark:bg-slate-800/80 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition-colors">
+                    <i data-lucide="book-open" class="w-5 h-5"></i>
+                </button>
+
+                <!-- Unit Toggle (°C / °F) -->
+                <button id="unitToggle" class="px-2.5 py-1.5 rounded-xl bg-slate-200/60 dark:bg-slate-800/80 hover:bg-slate-300 dark:hover:bg-slate-700 text-xs font-bold text-slate-700 dark:text-slate-200 transition-colors">
+                    °C
+                </button>
+
+                <!-- Dark/Light Theme Switcher -->
+                <button id="themeToggle" class="p-2 rounded-xl bg-slate-200/60 dark:bg-slate-800/80 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition-colors">
+                    <i data-lucide="sun" class="w-5 h-5 hidden dark:block"></i>
+                    <i data-lucide="moon" class="w-5 h-5 block dark:hidden"></i>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 space-y-6">
+
+        <!-- Severe Weather Alert Banner (Dynamic) -->
+        <div id="alertBanner" class="hidden p-4 rounded-2xl bg-amber-500/15 border border-amber-500/30 text-amber-900 dark:text-amber-200 flex items-start gap-3 shadow-sm">
+            <i data-lucide="triangle-alert" class="w-6 h-6 text-amber-500 shrink-0 mt-0.5"></i>
+            <div class="flex-1">
+                <h3 id="alertTitle" class="font-semibold text-sm">Severe Weather Alert</h3>
+                <p id="alertBody" class="text-xs text-amber-800 dark:text-amber-300 mt-0.5"></p>
+            </div>
+            <button onclick="document.getElementById('alertBanner').classList.add('hidden')" class="text-amber-700 dark:text-amber-400 hover:opacity-75">
+                <i data-lucide="x" class="w-4 h-4"></i>
+            </button>
+        </div>
+
+        <!-- Conversational Header Briefing Card -->
+        <div class="glass-panel rounded-3xl p-6 relative overflow-hidden shadow-lg border border-sky-500/20 bg-gradient-to-r from-sky-500/10 via-indigo-500/5 to-transparent">
+            <div class="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6 relative z-10">
+                <div class="space-y-3 max-w-3xl">
+                    <div class="flex items-center gap-2">
+                        <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-sky-500/20 text-sky-700 dark:text-sky-300 border border-sky-500/30">
+                            <i data-lucide="sparkles" class="w-3.5 h-3.5 text-sky-500"></i>
+                            Plain-English Summary
+                        </span>
+                        <span id="localTimeDisplay" class="text-xs text-slate-500 dark:text-slate-400 font-medium">--:--</span>
+                    </div>
+                    <h2 id="aiConversationalSummary" class="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 dark:text-white leading-snug">
+                        Loading your weather story...
+                    </h2>
+                    <p id="aiActionTip" class="text-sm text-slate-600 dark:text-slate-300 font-medium flex items-center gap-2">
+                        <i data-lucide="lightbulb" class="w-4 h-4 text-amber-500 shrink-0"></i>
+                        <span>Gathering practical advice for your day...</span>
+                    </p>
+                </div>
+
+                <!-- AI Detailed Analysis Launcher Button -->
+                <div class="flex items-center gap-2 shrink-0 w-full lg:w-auto">
+                    <button id="askAiModalBtn" class="w-full lg:w-auto px-5 py-3 rounded-2xl bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-600 hover:to-indigo-700 text-white font-medium text-sm flex items-center justify-center gap-2 shadow-lg shadow-sky-500/25 transition-all transform active:scale-95">
+                        <i data-lucide="bot" class="w-4 h-4"></i>
+                        <span>Ask AI Assistant</span>
+                    </button>
+                    <button id="favCityToggleBtn" class="p-3 rounded-2xl bg-white/80 dark:bg-slate-800/80 hover:bg-white dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 transition-colors shadow-sm" title="Bookmark City">
+                        <i id="favStarIcon" data-lucide="star" class="w-5 h-5"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Hero Weather Overview Card -->
+        <div class="glass-panel rounded-3xl p-6 sm:p-8 shadow-xl relative overflow-hidden">
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
+                
+                <!-- Left Column: City, Temp, Quick Description -->
+                <div class="lg:col-span-7 space-y-4">
+                    <div class="flex items-center gap-2">
+                        <i data-lucide="map-pin" class="w-5 h-5 text-sky-500"></i>
+                        <h2 id="cityNameDisplay" class="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white">--</h2>
+                        <span id="countryTag" class="text-xs px-2.5 py-1 rounded-md bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-semibold uppercase">--</span>
+                    </div>
+
+                    <div class="flex items-baseline gap-4 flex-wrap">
+                        <span id="currentTemp" class="text-6xl sm:text-7xl font-black text-slate-900 dark:text-white tracking-tight">--°</span>
+                        <div class="space-y-1">
+                            <div class="flex items-center gap-2">
+                                <span class="text-sm font-semibold text-slate-500 dark:text-slate-400">Feels like</span>
+                                <span id="currentFeelsLike" class="text-xl font-bold text-slate-800 dark:text-slate-200">--°</span>
+                            </div>
+                            <p id="thermalComfortTag" class="text-xs font-semibold px-2.5 py-0.5 rounded-full inline-block bg-sky-500/10 text-sky-600 dark:text-sky-400">
+                                Calculating comfort...
+                            </p>
+                        </div>
+                    </div>
+
+                    <div class="flex items-center gap-3">
+                        <div id="weatherMainIconContainer" class="p-2 rounded-2xl bg-sky-500/10 text-sky-500">
+                            <i data-lucide="cloud-sun" class="w-8 h-8"></i>
+                        </div>
+                        <div>
+                            <p id="weatherConditionText" class="text-lg font-bold text-slate-900 dark:text-slate-100">--</p>
+                            <p id="highLowDisplay" class="text-xs font-medium text-slate-500 dark:text-slate-400">High: --° • Low: --°</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Right Column: Quick Status Pills -->
+                <div class="lg:col-span-5 grid grid-cols-2 gap-3 bg-slate-100/60 dark:bg-slate-900/60 p-4 rounded-2xl border border-slate-200/50 dark:border-slate-800/50">
+                    <div class="p-3 rounded-xl bg-white/80 dark:bg-slate-800/80 shadow-sm border border-slate-100 dark:border-slate-800">
+                        <div class="text-xs text-slate-400 font-medium flex items-center gap-1.5">
+                            <i data-lucide="sun" class="w-3.5 h-3.5 text-amber-500"></i>
+                            <span>UV Risk</span>
+                        </div>
+                        <p id="quickUvText" class="text-sm font-bold text-slate-800 dark:text-slate-100 mt-1">--</p>
+                        <span id="quickUvBadge" class="text-[10px] font-semibold text-slate-500">--</span>
+                    </div>
+
+                    <div class="p-3 rounded-xl bg-white/80 dark:bg-slate-800/80 shadow-sm border border-slate-100 dark:border-slate-800">
+                        <div class="text-xs text-slate-400 font-medium flex items-center gap-1.5">
+                            <i data-lucide="wind" class="w-3.5 h-3.5 text-teal-500"></i>
+                            <span>Wind Breeze</span>
+                        </div>
+                        <p id="quickWindText" class="text-sm font-bold text-slate-800 dark:text-slate-100 mt-1">--</p>
+                        <span id="quickWindBadge" class="text-[10px] font-semibold text-slate-500">--</span>
+                    </div>
+
+                    <div class="p-3 rounded-xl bg-white/80 dark:bg-slate-800/80 shadow-sm border border-slate-100 dark:border-slate-800">
+                        <div class="text-xs text-slate-400 font-medium flex items-center gap-1.5">
+                            <i data-lucide="droplet" class="w-3.5 h-3.5 text-blue-500"></i>
+                            <span>Air Humidity</span>
+                        </div>
+                        <p id="quickHumidityText" class="text-sm font-bold text-slate-800 dark:text-slate-100 mt-1">--</p>
+                        <span id="quickHumidityBadge" class="text-[10px] font-semibold text-slate-500">--</span>
+                    </div>
+
+                    <div class="p-3 rounded-xl bg-white/80 dark:bg-slate-800/80 shadow-sm border border-slate-100 dark:border-slate-800">
+                        <div class="text-xs text-slate-400 font-medium flex items-center gap-1.5">
+                            <i data-lucide="activity" class="w-3.5 h-3.5 text-emerald-500"></i>
+                            <span>Air Quality</span>
+                        </div>
+                        <p id="quickAqiText" class="text-sm font-bold text-slate-800 dark:text-slate-100 mt-1">--</p>
+                        <span id="quickAqiBadge" class="text-[10px] font-semibold text-slate-500">--</span>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- Section Title: Plain-English Metric Decoders -->
+        <div class="flex items-center justify-between pt-2">
+            <div>
+                <h3 class="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                    <i data-lucide="sliders" class="w-5 h-5 text-sky-500"></i>
+                    Plain-English Metric Decoders
+                </h3>
+                <p class="text-xs text-slate-500 dark:text-slate-400">Click the info icon <span class="text-sky-500 font-bold">(i)</span> on any card to learn what the science means.</p>
+            </div>
+        </div>
+
+        <!-- 8 Plain-English Decoder Cards Grid -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+
+            <!-- Card 1: UV Index -->
+            <div class="glass-panel rounded-2xl p-5 space-y-3 relative flex flex-col justify-between hover:border-sky-500/50 transition-all shadow-sm">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-2 text-slate-500 dark:text-slate-400 text-xs font-semibold">
+                        <i data-lucide="sun" class="w-4 h-4 text-amber-500"></i>
+                        <span>UV INDEX</span>
+                    </div>
+                    <button onclick="openExplainerModal('uv')" class="text-slate-400 hover:text-sky-500 transition-colors" title="Learn about UV Index">
+                        <i data-lucide="info" class="w-4 h-4"></i>
+                    </button>
+                </div>
+                <div>
+                    <div class="flex items-baseline gap-2">
+                        <span id="cardUvVal" class="text-2xl font-extrabold text-slate-900 dark:text-white">--</span>
+                        <span id="cardUvCat" class="text-xs font-bold px-2 py-0.5 rounded-full bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300">--</span>
+                    </div>
+                    <!-- Meter Bar -->
+                    <div class="w-full h-2 bg-slate-200 dark:bg-slate-800 rounded-full mt-2 overflow-hidden">
+                        <div id="cardUvMeter" class="h-full bg-amber-500 meter-bar w-0"></div>
+                    </div>
+                </div>
+                <div class="bg-slate-100/80 dark:bg-slate-900/80 p-3 rounded-xl border border-slate-200/50 dark:border-slate-800/50 space-y-1">
+                    <p class="text-[11px] font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1">
+                        <i data-lucide="shield-alert" class="w-3.5 h-3.5 text-amber-500"></i>
+                        What this means today:
+                    </p>
+                    <p id="cardUvAdvice" class="text-xs text-slate-600 dark:text-slate-400">Loading advice...</p>
+                </div>
+            </div>
+
+            <!-- Card 2: Air Quality Index (AQI) -->
+            <div class="glass-panel rounded-2xl p-5 space-y-3 relative flex flex-col justify-between hover:border-sky-500/50 transition-all shadow-sm">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-2 text-slate-500 dark:text-slate-400 text-xs font-semibold">
+                        <i data-lucide="wind" class="w-4 h-4 text-emerald-500"></i>
+                        <span>AIR QUALITY (AQI)</span>
+                    </div>
+                    <button onclick="openExplainerModal('aqi')" class="text-slate-400 hover:text-sky-500 transition-colors" title="Learn about AQI">
+                        <i data-lucide="info" class="w-4 h-4"></i>
+                    </button>
+                </div>
+                <div>
+                    <div class="flex items-baseline gap-2">
+                        <span id="cardAqiVal" class="text-2xl font-extrabold text-slate-900 dark:text-white">--</span>
+                        <span id="cardAqiCat" class="text-xs font-bold px-2 py-0.5 rounded-full bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300">--</span>
+                    </div>
+                    <!-- Meter Bar -->
+                    <div class="w-full h-2 bg-slate-200 dark:bg-slate-800 rounded-full mt-2 overflow-hidden">
+                        <div id="cardAqiMeter" class="h-full bg-emerald-500 meter-bar w-0"></div>
+                    </div>
+                </div>
+                <div class="bg-slate-100/80 dark:bg-slate-900/80 p-3 rounded-xl border border-slate-200/50 dark:border-slate-800/50 space-y-1">
+                    <p class="text-[11px] font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1">
+                        <i data-lucide="heart-pulse" class="w-3.5 h-3.5 text-emerald-500"></i>
+                        Health Impact:
+                    </p>
+                    <p id="cardAqiAdvice" class="text-xs text-slate-600 dark:text-slate-400">Loading advice...</p>
+                </div>
+            </div>
+
+            <!-- Card 3: Humidity & Dew Point Barometer -->
+            <div class="glass-panel rounded-2xl p-5 space-y-3 relative flex flex-col justify-between hover:border-sky-500/50 transition-all shadow-sm">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-2 text-slate-500 dark:text-slate-400 text-xs font-semibold">
+                        <i data-lucide="droplets" class="w-4 h-4 text-sky-500"></i>
+                        <span>HUMIDITY & DEW POINT</span>
+                    </div>
+                    <button onclick="openExplainerModal('humidity')" class="text-slate-400 hover:text-sky-500 transition-colors" title="Learn about Dew Point">
+                        <i data-lucide="info" class="w-4 h-4"></i>
+                    </button>
+                </div>
+                <div>
+                    <div class="flex items-baseline justify-between">
+                        <span id="cardHumidityVal" class="text-2xl font-extrabold text-slate-900 dark:text-white">--%</span>
+                        <span id="cardDewPointVal" class="text-xs font-semibold text-slate-500">Dew Pt: --°</span>
+                    </div>
+                    <!-- Meter Bar -->
+                    <div class="w-full h-2 bg-slate-200 dark:bg-slate-800 rounded-full mt-2 overflow-hidden">
+                        <div id="cardHumidityMeter" class="h-full bg-sky-500 meter-bar w-0"></div>
+                    </div>
+                </div>
+                <div class="bg-slate-100/80 dark:bg-slate-900/80 p-3 rounded-xl border border-slate-200/50 dark:border-slate-800/50 space-y-1">
+                    <p class="text-[11px] font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1">
+                        <i data-lucide="thermometer-snowflake" class="w-3.5 h-3.5 text-sky-500"></i>
+                        Comfort Feeling:
+                    </p>
+                    <p id="cardHumidityAdvice" class="text-xs text-slate-600 dark:text-slate-400">Loading comfort level...</p>
+                </div>
+            </div>
+
+            <!-- Card 4: Wind Speed & Gusts -->
+            <div class="glass-panel rounded-2xl p-5 space-y-3 relative flex flex-col justify-between hover:border-sky-500/50 transition-all shadow-sm">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-2 text-slate-500 dark:text-slate-400 text-xs font-semibold">
+                        <i data-lucide="navigation" class="w-4 h-4 text-teal-500"></i>
+                        <span>WIND & GUSTS</span>
+                    </div>
+                    <button onclick="openExplainerModal('wind')" class="text-slate-400 hover:text-sky-500 transition-colors" title="Learn Beaufort Scale">
+                        <i data-lucide="info" class="w-4 h-4"></i>
+                    </button>
+                </div>
+                <div>
+                    <div class="flex items-baseline justify-between">
+                        <span id="cardWindVal" class="text-2xl font-extrabold text-slate-900 dark:text-white">-- km/h</span>
+                        <span id="cardGustsVal" class="text-xs font-semibold text-slate-500">Gusts: --</span>
+                    </div>
+                    <p id="cardWindScale" class="text-xs font-bold text-teal-600 dark:text-teal-400 mt-0.5">--</p>
+                </div>
+                <div class="bg-slate-100/80 dark:bg-slate-900/80 p-3 rounded-xl border border-slate-200/50 dark:border-slate-800/50 space-y-1">
+                    <p class="text-[11px] font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1">
+                        <i data-lucide="trees" class="w-3.5 h-3.5 text-teal-500"></i>
+                        Real-World Impact:
+                    </p>
+                    <p id="cardWindAdvice" class="text-xs text-slate-600 dark:text-slate-400">Loading impact...</p>
+                </div>
+            </div>
+
+            <!-- Card 5: Barometric Pressure & Trend -->
+            <div class="glass-panel rounded-2xl p-5 space-y-3 relative flex flex-col justify-between hover:border-sky-500/50 transition-all shadow-sm">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-2 text-slate-500 dark:text-slate-400 text-xs font-semibold">
+                        <i data-lucide="gauge" class="w-4 h-4 text-purple-500"></i>
+                        <span>BAROMETRIC PRESSURE</span>
+                    </div>
+                    <button onclick="openExplainerModal('pressure')" class="text-slate-400 hover:text-sky-500 transition-colors" title="Learn Barometric Pressure">
+                        <i data-lucide="info" class="w-4 h-4"></i>
+                    </button>
+                </div>
+                <div>
+                    <div class="flex items-baseline gap-2">
+                        <span id="cardPressureVal" class="text-2xl font-extrabold text-slate-900 dark:text-white">-- hPa</span>
+                        <span id="cardPressureTrend" class="text-xs font-bold text-purple-500 flex items-center gap-0.5">--</span>
+                    </div>
+                    <p id="cardPressureCat" class="text-xs font-bold text-slate-500 mt-0.5">--</p>
+                </div>
+                <div class="bg-slate-100/80 dark:bg-slate-900/80 p-3 rounded-xl border border-slate-200/50 dark:border-slate-800/50 space-y-1">
+                    <p class="text-[11px] font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1">
+                        <i data-lucide="cloud-rain" class="w-3.5 h-3.5 text-purple-500"></i>
+                        Weather Trend Signal:
+                    </p>
+                    <p id="cardPressureAdvice" class="text-xs text-slate-600 dark:text-slate-400">Loading trend...</p>
+                </div>
+            </div>
+
+            <!-- Card 6: Visibility & Haze -->
+            <div class="glass-panel rounded-2xl p-5 space-y-3 relative flex flex-col justify-between hover:border-sky-500/50 transition-all shadow-sm">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-2 text-slate-500 dark:text-slate-400 text-xs font-semibold">
+                        <i data-lucide="eye" class="w-4 h-4 text-indigo-500"></i>
+                        <span>VISIBILITY</span>
+                    </div>
+                    <button onclick="openExplainerModal('visibility')" class="text-slate-400 hover:text-sky-500 transition-colors" title="Learn Visibility">
+                        <i data-lucide="info" class="w-4 h-4"></i>
+                    </button>
+                </div>
+                <div>
+                    <div class="flex items-baseline gap-2">
+                        <span id="cardVisVal" class="text-2xl font-extrabold text-slate-900 dark:text-white">-- km</span>
+                        <span id="cardVisCat" class="text-xs font-bold px-2 py-0.5 rounded-full bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300">--</span>
+                    </div>
+                    <!-- Meter Bar -->
+                    <div class="w-full h-2 bg-slate-200 dark:bg-slate-800 rounded-full mt-2 overflow-hidden">
+                        <div id="cardVisMeter" class="h-full bg-indigo-500 meter-bar w-0"></div>
+                    </div>
+                </div>
+                <div class="bg-slate-100/80 dark:bg-slate-900/80 p-3 rounded-xl border border-slate-200/50 dark:border-slate-800/50 space-y-1">
+                    <p class="text-[11px] font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1">
+                        <i data-lucide="car" class="w-3.5 h-3.5 text-indigo-500"></i>
+                        Driving & Sightseeing:
+                    </p>
+                    <p id="cardVisAdvice" class="text-xs text-slate-600 dark:text-slate-400">Loading visibility advice...</p>
+                </div>
+            </div>
+
+            <!-- Card 7: Rain Risk & Volume -->
+            <div class="glass-panel rounded-2xl p-5 space-y-3 relative flex flex-col justify-between hover:border-sky-500/50 transition-all shadow-sm">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-2 text-slate-500 dark:text-slate-400 text-xs font-semibold">
+                        <i data-lucide="cloud-rain" class="w-4 h-4 text-blue-500"></i>
+                        <span>PRECIPITATION</span>
+                    </div>
+                    <button onclick="openExplainerModal('rain')" class="text-slate-400 hover:text-sky-500 transition-colors" title="Learn Rain Probability">
+                        <i data-lucide="info" class="w-4 h-4"></i>
+                    </button>
+                </div>
+                <div>
+                    <div class="flex items-baseline justify-between">
+                        <span id="cardRainProbVal" class="text-2xl font-extrabold text-slate-900 dark:text-white">--%</span>
+                        <span id="cardRainVolumeVal" class="text-xs font-semibold text-slate-500">Vol: -- mm</span>
+                    </div>
+                    <!-- Meter Bar -->
+                    <div class="w-full h-2 bg-slate-200 dark:bg-slate-800 rounded-full mt-2 overflow-hidden">
+                        <div id="cardRainMeter" class="h-full bg-blue-500 meter-bar w-0"></div>
+                    </div>
+                </div>
+                <div class="bg-slate-100/80 dark:bg-slate-900/80 p-3 rounded-xl border border-slate-200/50 dark:border-slate-800/50 space-y-1">
+                    <p class="text-[11px] font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1">
+                        <i data-lucide="umbrella" class="w-3.5 h-3.5 text-blue-500"></i>
+                        Practical Advice:
+                    </p>
+                    <p id="cardRainAdvice" class="text-xs text-slate-600 dark:text-slate-400">Loading rain advice...</p>
+                </div>
+            </div>
+
+            <!-- Card 8: Cloud Cover & Sunlight -->
+            <div class="glass-panel rounded-2xl p-5 space-y-3 relative flex flex-col justify-between hover:border-sky-500/50 transition-all shadow-sm">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-2 text-slate-500 dark:text-slate-400 text-xs font-semibold">
+                        <i data-lucide="cloud" class="w-4 h-4 text-slate-400"></i>
+                        <span>CLOUD COVER</span>
+                    </div>
+                    <button onclick="openExplainerModal('clouds')" class="text-slate-400 hover:text-sky-500 transition-colors" title="Learn Cloud Cover">
+                        <i data-lucide="info" class="w-4 h-4"></i>
+                    </button>
+                </div>
+                <div>
+                    <div class="flex items-baseline gap-2">
+                        <span id="cardCloudVal" class="text-2xl font-extrabold text-slate-900 dark:text-white">--%</span>
+                        <span id="cardCloudCat" class="text-xs font-bold px-2 py-0.5 rounded-full bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300">--</span>
+                    </div>
+                    <!-- Meter Bar -->
+                    <div class="w-full h-2 bg-slate-200 dark:bg-slate-800 rounded-full mt-2 overflow-hidden">
+                        <div id="cardCloudMeter" class="h-full bg-slate-400 meter-bar w-0"></div>
+                    </div>
+                </div>
+                <div class="bg-slate-100/80 dark:bg-slate-900/80 p-3 rounded-xl border border-slate-200/50 dark:border-slate-800/50 space-y-1">
+                    <p class="text-[11px] font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1">
+                        <i data-lucide="sun-medium" class="w-3.5 h-3.5 text-amber-500"></i>
+                        Sunlight & Mood:
+                    </p>
+                    <p id="cardCloudAdvice" class="text-xs text-slate-600 dark:text-slate-400">Loading sky advice...</p>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Smart Lifestyle & Activity Planning Assistant -->
+        <div class="glass-panel rounded-3xl p-6 space-y-6 shadow-lg">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200/60 dark:border-slate-800/80 pb-4">
+                <div>
+                    <h3 class="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                        <i data-lucide="shirt" class="w-5 h-5 text-indigo-500"></i>
+                        Smart Lifestyle & Outfit Recommendation Engine
+                    </h3>
+                    <p class="text-xs text-slate-500 dark:text-slate-400">Data-driven choices for clothing, outdoor fitness, drying laundry, and travel safety.</p>
+                </div>
+                <span class="text-xs px-3 py-1 rounded-full bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 font-bold self-start sm:self-auto">
+                    Today's Action Plan
+                </span>
+            </div>
+
+            <!-- Outfit Suggestions Grid -->
+            <div class="bg-gradient-to-r from-indigo-500/10 via-sky-500/10 to-teal-500/10 p-5 rounded-2xl border border-indigo-500/20 space-y-4">
+                <div class="flex items-center gap-2">
+                    <i data-lucide="sparkles" class="w-5 h-5 text-indigo-500"></i>
+                    <h4 class="font-bold text-sm text-slate-900 dark:text-white">Recommended Outfit Breakdown</h4>
+                </div>
+                <div id="outfitListGrid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
+                    <!-- Outfit slots filled dynamically -->
+                </div>
+                <p id="outfitSummaryNote" class="text-xs text-slate-600 dark:text-slate-300 italic">
+                    Calculating ideal clothing layers based on current thermal comfort...
+                </p>
+            </div>
+
+            <!-- Activity Suitability Cards -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+
+                <!-- Activity 1: Fitness / Running -->
+                <div class="p-4 rounded-2xl bg-slate-100/70 dark:bg-slate-900/70 border border-slate-200/60 dark:border-slate-800/80 space-y-2">
+                    <div class="flex items-center justify-between">
+                        <span class="text-xs font-bold text-slate-500 flex items-center gap-1.5">
+                            <i data-lucide="person-standing" class="w-4 h-4 text-emerald-500"></i>
+                            Running / Fitness
+                        </span>
+                        <span id="actRunningBadge" class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-700 dark:text-emerald-300">--</span>
+                    </div>
+                    <p id="actRunningAdvice" class="text-xs text-slate-600 dark:text-slate-300 font-medium">Evaluating temperature and air quality...</p>
+                </div>
+
+                <!-- Activity 2: Drying Clothes Outside -->
+                <div class="p-4 rounded-2xl bg-slate-100/70 dark:bg-slate-900/70 border border-slate-200/60 dark:border-slate-800/80 space-y-2">
+                    <div class="flex items-center justify-between">
+                        <span class="text-xs font-bold text-slate-500 flex items-center gap-1.5">
+                            <i data-lucide="washing-machine" class="w-4 h-4 text-sky-500"></i>
+                            Drying Clothes
+                        </span>
+                        <span id="actLaundryBadge" class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-sky-500/20 text-sky-700 dark:text-sky-300">--</span>
+                    </div>
+                    <p id="actLaundryAdvice" class="text-xs text-slate-600 dark:text-slate-300 font-medium">Evaluating humidity and rain risk...</p>
+                </div>
+
+                <!-- Activity 3: Driving & Travel Safety -->
+                <div class="p-4 rounded-2xl bg-slate-100/70 dark:bg-slate-900/70 border border-slate-200/60 dark:border-slate-800/80 space-y-2">
+                    <div class="flex items-center justify-between">
+                        <span class="text-xs font-bold text-slate-500 flex items-center gap-1.5">
+                            <i data-lucide="car" class="w-4 h-4 text-amber-500"></i>
+                            Driving Safety
+                        </span>
+                        <span id="actDrivingBadge" class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-700 dark:text-amber-300">--</span>
+                    </div>
+                    <p id="actDrivingAdvice" class="text-xs text-slate-600 dark:text-slate-300 font-medium">Evaluating visibility and precipitation...</p>
+                </div>
+
+                <!-- Activity 4: Outdoor Gardening -->
+                <div class="p-4 rounded-2xl bg-slate-100/70 dark:bg-slate-900/70 border border-slate-200/60 dark:border-slate-800/80 space-y-2">
+                    <div class="flex items-center justify-between">
+                        <span class="text-xs font-bold text-slate-500 flex items-center gap-1.5">
+                            <i data-lucide="flower" class="w-4 h-4 text-teal-500"></i>
+                            Gardening & Plants
+                        </span>
+                        <span id="actGardeningBadge" class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-teal-500/20 text-teal-700 dark:text-teal-300">--</span>
+                    </div>
+                    <p id="actGardeningAdvice" class="text-xs text-slate-600 dark:text-slate-300 font-medium">Evaluating rainfall and soil moisture needs...</p>
+                </div>
+
+                <!-- Activity 5: Outdoor Dining & Sunbathing -->
+                <div class="p-4 rounded-2xl bg-slate-100/70 dark:bg-slate-900/70 border border-slate-200/60 dark:border-slate-800/80 space-y-2">
+                    <div class="flex items-center justify-between">
+                        <span class="text-xs font-bold text-slate-500 flex items-center gap-1.5">
+                            <i data-lucide="utensils" class="w-4 h-4 text-purple-500"></i>
+                            Outdoor Dining
+                        </span>
+                        <span id="actDiningBadge" class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-700 dark:text-purple-300">--</span>
+                    </div>
+                    <p id="actDiningAdvice" class="text-xs text-slate-600 dark:text-slate-300 font-medium">Evaluating weather windows...</p>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- 24-Hour Interactive Visual Chart & Hourly Forecast -->
+        <div class="glass-panel rounded-3xl p-6 space-y-6 shadow-lg">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200/60 dark:border-slate-800/80 pb-4">
+                <div>
+                    <h3 class="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                        <i data-lucide="clock" class="w-5 h-5 text-sky-500"></i>
+                        24-Hour Visual Hourly Timeline
+                    </h3>
+                    <p class="text-xs text-slate-500 dark:text-slate-400">Track hourly trends in temperature, rain probability, wind, or UV Index.</p>
+                </div>
+
+                <!-- Chart Metric Tab Buttons -->
+                <div class="flex items-center gap-1 bg-slate-200/70 dark:bg-slate-900/80 p-1 rounded-xl self-start sm:self-auto">
+                    <button onclick="switchChartMetric('temp')" id="chartTabTemp" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-white dark:bg-slate-800 text-sky-500 shadow-sm transition-all">
+                        Temperature
+                    </button>
+                    <button onclick="switchChartMetric('rain')" id="chartTabRain" class="px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-all">
+                        Rain %
+                    </button>
+                    <button onclick="switchChartMetric('wind')" id="chartTabWind" class="px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-all">
+                        Wind
+                    </button>
+                    <button onclick="switchChartMetric('uv')" id="chartTabUv" class="px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-all">
+                        UV Index
+                    </button>
+                </div>
+            </div>
+
+            <!-- Chart.js Canvas Container -->
+            <div class="h-64 w-full relative">
+                <canvas id="hourlyChart"></canvas>
+            </div>
+
+            <!-- Horizontal Scrollable Hourly Cards -->
+            <div class="pt-2">
+                <p class="text-xs font-semibold text-slate-500 mb-2">Hourly Plain-English Cards (Scroll right →)</p>
+                <div id="hourlyCardsRow" class="flex gap-3 overflow-x-auto pb-3 custom-scrollbar">
+                    <!-- Cards populated via JS -->
+                </div>
+            </div>
+        </div>
+
+        <!-- 7-Day Daily Forecast -->
+        <div class="glass-panel rounded-3xl p-6 space-y-6 shadow-lg">
+            <div class="flex items-center justify-between border-b border-slate-200/60 dark:border-slate-800/80 pb-4">
+                <div>
+                    <h3 class="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                        <i data-lucide="calendar" class="w-5 h-5 text-indigo-500"></i>
+                        7-Day Plain-English Daily Forecast
+                    </h3>
+                    <p class="text-xs text-slate-500 dark:text-slate-400">Click any day card to expand detailed breakdowns (UV, Rain, Wind, Sunrise/Sunset).</p>
+                </div>
+            </div>
+
+            <!-- 7-Day Forecast Grid -->
+            <div id="dailyForecastContainer" class="space-y-3">
+                <!-- Daily items populated via JS -->
+            </div>
+        </div>
+
+        <!-- Interactive Weather Educational Glossary -->
+        <div class="glass-panel rounded-3xl p-6 space-y-6 shadow-lg">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200/60 dark:border-slate-800/80 pb-4">
+                <div>
+                    <h3 class="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                        <i data-lucide="book-open" class="w-5 h-5 text-teal-500"></i>
+                        Weather Glossary for Non-Meteorologists
+                    </h3>
+                    <p class="text-xs text-slate-500 dark:text-slate-400">Demystifying technical terms so you understand every forecast number.</p>
+                </div>
+                <div class="relative w-full sm:w-64">
+                    <i data-lucide="search" class="w-3.5 h-3.5 absolute left-3 top-2.5 text-slate-400"></i>
+                    <input type="text" id="glossarySearchInput" placeholder="Search glossary..." 
+                        class="w-full pl-8 pr-3 py-1.5 text-xs bg-slate-200/60 dark:bg-slate-900/80 border border-transparent focus:border-teal-500 rounded-xl focus:outline-none">
+                </div>
+            </div>
+
+            <!-- Glossary Cards Grid -->
+            <div id="glossaryGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <!-- Populated via JS -->
+            </div>
+        </div>
+
+    </main>
+
+    <!-- MODAL 1: Metric Explainer Popup (Info Icon Click) -->
+    <div id="explainerModal" class="fixed inset-0 bg-slate-950/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="glass-panel bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-xl w-full p-6 sm:p-8 space-y-5 shadow-2xl relative max-h-[90vh] overflow-y-auto custom-scrollbar">
+            <button onclick="closeExplainerModal()" class="absolute top-6 right-6 p-2 rounded-xl text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 bg-slate-100 dark:bg-slate-800 transition-colors">
+                <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
+            
+            <div class="flex items-center gap-3">
+                <div id="modalIconBox" class="p-3 rounded-2xl bg-sky-500/10 text-sky-500">
+                    <i data-lucide="info" class="w-6 h-6"></i>
+                </div>
+                <div>
+                    <h3 id="modalTitle" class="text-xl font-bold text-slate-900 dark:text-white">Metric Title</h3>
+                    <p id="modalSubtitle" class="text-xs text-sky-500 font-semibold">How it's measured</p>
+                </div>
+            </div>
+
+            <div class="space-y-4 text-sm text-slate-600 dark:text-slate-300">
+                <div class="p-4 rounded-2xl bg-slate-100 dark:bg-slate-800/60 border border-slate-200/50 dark:border-slate-700/50">
+                    <h4 class="font-bold text-slate-900 dark:text-slate-100 mb-1 text-xs uppercase tracking-wider text-sky-500">What is it?</h4>
+                    <p id="modalDescription" class="leading-relaxed">Description goes here...</p>
+                </div>
+
+                <div class="p-4 rounded-2xl bg-slate-100 dark:bg-slate-800/60 border border-slate-200/50 dark:border-slate-700/50">
+                    <h4 class="font-bold text-slate-900 dark:text-slate-100 mb-1 text-xs uppercase tracking-wider text-emerald-500">Why it matters for your comfort & health</h4>
+                    <p id="modalWhyMatters" class="leading-relaxed">Why matters goes here...</p>
+                </div>
+
+                <div class="p-4 rounded-2xl bg-slate-100 dark:bg-slate-800/60 border border-slate-200/50 dark:border-slate-700/50">
+                    <h4 class="font-bold text-slate-900 dark:text-slate-100 mb-2 text-xs uppercase tracking-wider text-amber-500">Ideal Targets & Scale Guidance</h4>
+                    <div id="modalScaleGuide" class="space-y-1.5 text-xs">
+                        <!-- Scale guidelines -->
+                    </div>
+                </div>
+            </div>
+
+            <div class="pt-2 text-right">
+                <button onclick="closeExplainerModal()" class="px-5 py-2.5 rounded-xl bg-sky-500 hover:bg-sky-600 text-white font-semibold text-sm transition-colors">
+                    Got it, thanks!
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL 2: Multi-City Comparison Tool -->
+    <div id="compareModal" class="fixed inset-0 bg-slate-950/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="glass-panel bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-4xl w-full p-6 sm:p-8 space-y-6 shadow-2xl relative max-h-[90vh] overflow-y-auto custom-scrollbar">
+            <button onclick="closeCompareModal()" class="absolute top-6 right-6 p-2 rounded-xl text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 bg-slate-100 dark:bg-slate-800 transition-colors">
+                <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
+
+            <div>
+                <h3 class="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                    <i data-lucide="columns" class="w-6 h-6 text-sky-500"></i>
+                    Multi-City Weather Comparison
+                </h3>
+                <p class="text-xs text-slate-500 dark:text-slate-400">Compare plain-English metrics side-by-side between cities.</p>
+            </div>
+
+            <div class="flex items-center gap-2">
+                <input type="text" id="compareSearchInput" placeholder="Add city to compare..." 
+                    class="flex-1 px-4 py-2 text-sm bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500">
+                <button id="addCompareBtn" class="px-4 py-2 bg-sky-500 hover:bg-sky-600 text-white text-sm font-semibold rounded-xl transition-colors">
+                    Add City
+                </button>
+            </div>
+
+            <div id="compareTableContainer" class="overflow-x-auto">
+                <p class="text-xs text-slate-500 italic text-center py-8">No comparison cities added yet. Type a city name above to compare.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL 3: Saved Favorites Drawer -->
+    <div id="favDrawer" class="fixed inset-0 bg-slate-950/60 backdrop-blur-sm z-50 hidden flex items-center justify-end">
+        <div class="glass-panel bg-white dark:bg-slate-900 border-l border-slate-200 dark:border-slate-800 w-full max-w-md h-full p-6 space-y-6 shadow-2xl relative flex flex-col justify-between">
+            <div>
+                <div class="flex items-center justify-between pb-4 border-b border-slate-200 dark:border-slate-800">
+                    <h3 class="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                        <i data-lucide="bookmark" class="w-5 h-5 text-amber-500"></i>
+                        Saved Favorite Cities
+                    </h3>
+                    <button onclick="closeFavDrawer()" class="p-2 rounded-xl text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 bg-slate-100 dark:bg-slate-800 transition-colors">
+                        <i data-lucide="x" class="w-5 h-5"></i>
+                    </button>
+                </div>
+
+                <div id="favListContainer" class="mt-4 space-y-3 max-h-[70vh] overflow-y-auto custom-scrollbar">
+                    <!-- Favorites populated via JS -->
+                </div>
+            </div>
+
+            <p class="text-xs text-slate-400 text-center">Cities are automatically saved in your browser storage.</p>
+        </div>
+    </div>
+
+    <!-- MODAL 4: AI Weather Assistant (Gemini API) -->
+    <div id="aiModal" class="fixed inset-0 bg-slate-950/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="glass-panel bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-2xl w-full p-6 sm:p-8 space-y-5 shadow-2xl relative max-h-[90vh] overflow-y-auto custom-scrollbar flex flex-col">
+            <button onclick="closeAiModal()" class="absolute top-6 right-6 p-2 rounded-xl text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 bg-slate-100 dark:bg-slate-800 transition-colors">
+                <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
+
+            <div class="flex items-center gap-3">
+                <div class="p-3 rounded-2xl bg-gradient-to-tr from-sky-500 to-indigo-600 text-white shadow-md">
+                    <i data-lucide="bot" class="w-6 h-6"></i>
+                </div>
+                <div>
+                    <h3 class="text-xl font-bold text-slate-900 dark:text-white">Gemini AI Weather Assistant</h3>
+                    <p class="text-xs text-sky-500 font-medium">Ask custom questions or request a full personalized weather narrative</p>
+                </div>
+            </div>
+
+            <!-- Quick Question Chips -->
+            <div class="flex items-center gap-2 flex-wrap text-xs">
+                <button onclick="askAiQuestion('What should I wear today and carry in my bag?')" class="px-3 py-1.5 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-sky-500 hover:text-white transition-colors">
+                    👔 What should I wear?
+                </button>
+                <button onclick="askAiQuestion('Is today good for washing my car or outdoor laundry?')" class="px-3 py-1.5 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-sky-500 hover:text-white transition-colors">
+                    🚗 Should I wash my car?
+                </button>
+                <button onclick="askAiQuestion('Give me a 3-sentence plain English summary for an outdoor evening barbecue.')" class="px-3 py-1.5 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-sky-500 hover:text-white transition-colors">
+                    🍔 Evening barbecue check
+                </button>
+            </div>
+
+            <!-- Response Container -->
+            <div id="aiResponseBox" class="p-5 rounded-2xl bg-slate-100 dark:bg-slate-800/70 border border-slate-200 dark:border-slate-700/60 min-h-[160px] max-h-[300px] overflow-y-auto custom-scrollbar text-sm leading-relaxed text-slate-800 dark:text-slate-200 space-y-3">
+                <p class="text-slate-400 italic">Click a quick question above or type your own question below to get plain-English AI insights!</p>
+            </div>
+
+            <!-- Input Form -->
+            <div class="flex items-center gap-2 pt-2">
+                <input type="text" id="aiCustomPrompt" placeholder="Ask anything (e.g. Will it rain during my 6 PM commute?)..." 
+                    class="flex-1 px-4 py-2.5 text-sm bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500">
+                <button id="aiSendBtn" onclick="submitCustomAiPrompt()" class="px-5 py-2.5 bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-600 hover:to-indigo-700 text-white font-semibold text-sm rounded-xl transition-all flex items-center gap-2">
+                    <i data-lucide="send" class="w-4 h-4"></i>
+                    <span>Ask AI</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // State variables
+        let currentUnits = 'metric'; // 'metric' or 'imperial'
+        let currentCityData = null;
+        let weatherData = null;
+        let airQualityData = null;
+        let favCities = JSON.parse(localStorage.getItem('clarity_fav_cities') || '[]');
+        let compareCitiesList = [];
+        let hourlyChartInstance = null;
+        let currentChartMetric = 'temp';
+
+        // Default initial city (Dehradun / London fallback)
+        const DEFAULT_CITY = {
+            name: "London",
+            country: "United Kingdom",
+            latitude: 51.5074,
+            longitude: -0.1278
+        };
+
+        // Metric Explainer Data Repository
+        const EXPLAINER_DATA = {
+            uv: {
+                title: "UV Index (Ultraviolet Rays)",
+                subtitle: "Measures solar radiation strength reaching the earth",
+                icon: "sun",
+                description: "The UV Index measures the strength of sunburn-producing ultraviolet radiation at a particular place and time. It ranges from 0 (nighttime) to 11+ (extreme high altitude/equator).",
+                whyMatters: "Unprotected sun exposure causes skin damage, premature aging, eye strain, and elevated skin cancer risks. Even on overcast days, up to 80% of UV rays penetrate clouds.",
+                scale: [
+                    { range: "0 - 2 (Low)", desc: "Minimal risk. Safe to stay outside with standard comfort." },
+                    { range: "3 - 5 (Moderate)", desc: "Wear SPF 30+ sunscreen if outdoors for >45 minutes. Seek midday shade." },
+                    { range: "6 - 7 (High)", desc: "High risk! Sunglasses, hat, and SPF 30+ essential. Skin can burn in 20-30 mins." },
+                    { range: "8 - 10 (Very High)", desc: "Very high risk! Limit sun between 10am-4pm. Reapply sunscreen every 2 hours." },
+                    { range: "11+ (Extreme)", desc: "Extreme hazard! Unprotected skin burns in <10 mins. Avoid direct sunlight." }
+                ]
+            },
+            aqi: {
+                title: "Air Quality Index (AQI)",
+                subtitle: "Measures clean air vs pollutants (PM2.5, PM10, Ozone, NO2)",
+                icon: "wind",
+                description: "AQI translates complex air pollutant measurements into a single scale from 0 to 500. It accounts for fine particulate matter (PM2.5), dust (PM10), smog, and nitrogen dioxide.",
+                whyMatters: "Poor air quality inflames lungs, triggers asthma attacks, and causes fatigue. Healthy individuals may feel throat irritation during high exertion when AQI is elevated.",
+                scale: [
+                    { range: "0 - 50 (Good)", desc: "Satisfactory air quality. Ideal for all outdoor workouts and sports." },
+                    { range: "51 - 100 (Moderate)", desc: "Acceptable air quality. Unusually sensitive individuals should consider light caution." },
+                    { range: "101 - 150 (Unhealthy for Sensitive)", desc: "Asthmatics & kids should reduce heavy outdoor cardio." },
+                    { range: "151 - 200 (Unhealthy)", desc: "Everyone may begin feeling eye/throat irritation. Exercise indoors." },
+                    { range: "201 - 300+ (Very Unhealthy / Hazardous)", desc: "Health alert. Keep windows closed and wear N95 outdoors if needed." }
+                ]
+            },
+            humidity: {
+                title: "Relative Humidity vs Dew Point",
+                subtitle: "Dew Point is the true secret indicator of sweat comfort",
+                icon: "droplets",
+                description: "Humidity is the percentage of moisture in the air relative to maximum capacity at that temp. Dew Point is the exact temperature air must cool to condense water. Dew point tells you how sticky you will feel!",
+                whyMatters: "When the dew point exceeds 18°C (65°F), air is saturated. Your sweat cannot evaporate into the air to cool your body down, making warm weather feel muggy, sticky, and exhausting.",
+                scale: [
+                    { range: "Dew Point < 10°C (50°F)", desc: "Dry & Crisp. Refreshing, easy sweat evaporation." },
+                    { range: "Dew Point 10-15°C (50-59°F)", desc: "Comfortable & Ideal. Balanced moisture level." },
+                    { range: "Dew Point 16-18°C (60-65°F)", desc: "Slightly Humid. Noticeable moisture during exercise." },
+                    { range: "Dew Point 19-21°C (66-70°F)", desc: "Muggy & Sticky. Clothes stick to skin, sweat evaporates slowly." },
+                    { range: "Dew Point > 22°C (72°F+)", desc: "Oppressive & Tropical. Heavy air, high risk of heat exhaustion." }
+                ]
+            },
+            wind: {
+                title: "Wind Speed & Beaufort Scale",
+                subtitle: "Translating km/h into real-world physical forces",
+                icon: "navigation",
+                description: "Wind is the movement of air caused by atmospheric pressure differences. Weather apps measure sustained wind speed at 10 meters height plus peak short gusts.",
+                whyMatters: "Wind speed directly determines wind chill (how cold air feels on skin), steering safety for cars, umbrella usability, and whether outdoor items get blown away.",
+                scale: [
+                    { range: "< 12 km/h (Light Breeze)", desc: "Leaves rustle, wind felt gently on face." },
+                    { range: "12 - 28 km/h (Moderate Breeze)", desc: "Small branches move, dust & paper shift, umbrellas wobble slightly." },
+                    { range: "29 - 49 km/h (Strong Breeze)", desc: "Large tree branches in motion, umbrellas turn inside out, walking takes effort." },
+                    { range: "50 - 74 km/h (High Wind / Gale)", desc: "Whole trees sway, outdoor furniture shifts, driving high-profile vehicles requires care." },
+                    { range: "> 75 km/h (Storm Force)", desc: "Widespread damage, structural hazard, broken tree limbs." }
+                ]
+            },
+            pressure: {
+                title: "Barometric Pressure & Trends",
+                subtitle: "Atmospheric weight pointing towards sunshine or storms",
+                icon: "gauge",
+                description: "Barometric pressure measures the weight of the atmosphere pushing down on earth in hectopascals (hPa). Standard sea-level pressure is 1013.25 hPa.",
+                whyMatters: "Rapid drops in pressure signal an incoming low-pressure system (clouds, rain, wind). Rising pressure signals clearing skies and fair, stable weather.",
+                scale: [
+                    { range: "> 1020 hPa (High Pressure)", desc: "Stable, calm, dry weather with clear blue skies." },
+                    { range: "1008 - 1020 hPa (Normal)", desc: "Steady atmospheric conditions with minimal rapid changes." },
+                    { range: "< 1008 hPa (Low Pressure)", desc: "Unstable air, potential clouds, rain showers, or wind." },
+                    { range: "Falling Trend (↘ >1.5 hPa)", desc: "Rain or storm approaching within 6 to 12 hours!" },
+                    { range: "Rising Trend (↗ >1.5 hPa)", desc: "Improving weather ahead! Clearing clouds and drier conditions." }
+                ]
+            },
+            visibility: {
+                title: "Atmospheric Visibility",
+                subtitle: "Horizontal distance you can clearly see landmark objects",
+                icon: "eye",
+                description: "Visibility measures how far ahead you can identify objects in kilometers or miles. It is reduced by fog, mist, heavy rain downpours, or air pollution haze.",
+                whyMatters: "Visibility directly impacts safe driving speeds, flight schedules, and scenic sightseeing views.",
+                scale: [
+                    { range: "> 10 km (Excellent)", desc: "Crystal clear view. Ideal driving and sightseeing." },
+                    { range: "4 - 10 km (Good)", desc: "Slight haze or light drizzle, but normal road visibility." },
+                    { range: "1 - 4 km (Poor)", desc: "Thick haze or rainfall mist. Use headlights while driving." },
+                    { range: "< 1 km (Fog / Hazardous)", desc: "Dense fog or torrential rain. Slow down, use low beams or fog lights." }
+                ]
+            },
+            rain: {
+                title: "Precipitation Probability & Intensity",
+                subtitle: "Understanding rain chance % vs rainfall volume (mm)",
+                icon: "cloud-rain",
+                description: "Rain Probability (%) is the statistical likelihood that rain will fall at a specific location during an hour. Rain Volume (mm) measures how deep the water layer would be.",
+                whyMatters: "A 90% chance of 0.1 mm rain means a light sprinkle (no boots needed), while a 50% chance of 15 mm rain means a intense heavy downpour!",
+                scale: [
+                    { range: "< 20% Probability", desc: "Minimal chance. No umbrella needed." },
+                    { range: "20 - 50% Probability", desc: "Passing shower possible. Keep a light raincoat handy." },
+                    { range: "50 - 100% Probability", desc: "Rain highly likely. Plan indoor options or full rain gear." },
+                    { range: "< 1.0 mm/hr Volume", desc: "Light drizzle or gentle rain drops." },
+                    { range: "> 5.0 mm/hr Volume", desc: "Heavy downpour, localized puddles and road splashes." }
+                ]
+            },
+            clouds: {
+                title: "Cloud Cover Percentage",
+                subtitle: "Fraction of the sky covered by clouds",
+                icon: "cloud",
+                description: "Cloud cover indicates what percentage of the sky overhead is obscured by clouds, ranging from 0% (clear blue sky) to 100% (completely overcast).",
+                whyMatters: "Cloud cover determines direct sunlight availability, outdoor photography lighting, natural warmth retention at night, and daytime heating.",
+                scale: [
+                    { range: "0 - 20% (Clear / Sunny)", desc: "Unobstructed sunshine. Bright and energizing day." },
+                    { range: "20 - 60% (Partly Cloudy)", desc: "Pleasant mix of blue sky and passing clouds." },
+                    { range: "60 - 90% (Mostly Cloudy)", desc: "Filtered sunlight, overcast breaks." },
+                    { range: "90 - 100% (Overcast)", desc: "Full gray sky dome. Minimal direct sunlight." }
+                ]
+            }
+        };
+
+        // Weather Glossary Terms
+        const GLOSSARY_TERMS = [
+            { term: "Apparent Temperature (Feels Like)", category: "Temperature", def: "How warm or cold air feels to human skin when combining air temp, relative humidity, and wind speed." },
+            { term: "Dew Point", category: "Comfort", def: "The exact temp air must cool down to for water droplets to form. Dew points over 18°C (65°F) feel muggy and sticky." },
+            { term: "Barometric Pressure", category: "Atmosphere", def: "The weight of the air column above us pushing down. Dropping pressure signals rain or storm systems." },
+            { term: "UV Index", category: "Health", def: "An international scale measuring sunburn risk from solar ultraviolet radiation. Scale spans from 0 (night) to 11+ (extreme)." },
+            { term: "PM2.5 & PM10", category: "Air Quality", def: "Tiny airborne dust and pollution particles. PM2.5 particles are small enough to enter deep into human lungs." },
+            { term: "Beaufort Scale", category: "Wind", def: "An empirical measure relating wind speed to observed physical conditions on land (e.g. rustling leaves vs swaying branches)." },
+            { term: "Precipitation Probability", category: "Rain", def: "The percent chance that at least a measurable amount of rain will fall in your immediate area." },
+            { term: "Relative Humidity", category: "Moisture", def: "The percentage of water vapor currently in the air compared to the maximum amount the air can hold at that temp." }
+        ];
+
+        document.addEventListener('DOMContentLoaded', () => {
+            lucide.createIcons();
+            initTheme();
+            initSearch();
+            initGlossary();
+            setupEventListeners();
+            
+            // Load initial default city or geolocate
+            loadCityData(DEFAULT_CITY);
+            updateFavCountBadge();
+        });
+
+        function setupEventListeners() {
+            // Location Button
+            document.getElementById('locBtn').addEventListener('click', getCurrentLocation);
+
+            // Unit Toggle
+            document.getElementById('unitToggle').addEventListener('click', () => {
+                currentUnits = currentUnits === 'metric' ? 'imperial' : 'metric';
+                document.getElementById('unitToggle').textContent = currentUnits === 'metric' ? '°C' : '°F';
+                if (currentCityData) loadCityData(currentCityData);
+            });
+
+            // Theme Toggle
+            document.getElementById('themeToggle').addEventListener('click', toggleTheme);
+
+            // Modals & Buttons
+            document.getElementById('favDrawerBtn').addEventListener('click', openFavDrawer);
+            document.getElementById('favCityToggleBtn').addEventListener('click', toggleCurrentFavorite);
+            document.getElementById('compareBtn').addEventListener('click', openCompareModal);
+            document.getElementById('glossaryBtn').addEventListener('click', () => {
+                document.getElementById('glossarySearchInput').scrollIntoView({ behavior: 'smooth' });
+            });
+            document.getElementById('askAiModalBtn').addEventListener('click', openAiModal);
+            document.getElementById('addCompareBtn').addEventListener('click', handleAddCompareCity);
+
+            // Glossary search filter
+            document.getElementById('glossarySearchInput').addEventListener('input', (e) => {
+                renderGlossary(e.target.value);
+            });
+        }
+
+        function initTheme() {
+            const savedTheme = localStorage.getItem('clarity_theme');
+            if (savedTheme === 'light') {
+                document.documentElement.classList.remove('dark');
+            } else {
+                document.documentElement.classList.add('dark');
+            }
+        }
+
+        function toggleTheme() {
+            if (document.documentElement.classList.contains('dark')) {
+                document.documentElement.classList.remove('dark');
+                localStorage.setItem('clarity_theme', 'light');
+            } else {
+                document.documentElement.classList.add('dark');
+                localStorage.setItem('clarity_theme', 'dark');
+            }
+        }
+
+        function getCurrentLocation() {
+            if (!navigator.geolocation) {
+                alert("Geolocation is not supported by your browser.");
+                return;
+            }
+
+            const btn = document.getElementById('locBtn');
+            btn.classList.add('animate-pulse');
+
+            navigator.geolocation.getCurrentPosition(
+                async (pos) => {
+                    const lat = pos.coords.latitude;
+                    const lon = pos.coords.longitude;
+                    
+                    // Reverse geocode city name using Open-Meteo or fallback
+                    try {
+                        const res = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${lat.toFixed(2)},${lon.toFixed(2)}&count=1`);
+                        const data = await res.json();
+                        let cityName = "Your Location";
+                        let country = "";
+                        if (data.results && data.results.length > 0) {
+                            cityName = data.results[0].name;
+                            country = data.results[0].country || "";
+                        }
+                        loadCityData({ name: cityName, country, latitude: lat, longitude: lon });
+                    } catch (e) {
+                        loadCityData({ name: "Current Location", country: "", latitude: lat, longitude: lon });
+                    } finally {
+                        btn.classList.remove('animate-pulse');
+                    }
+                },
+                (err) => {
+                    btn.classList.remove('animate-pulse');
+                    alert("Unable to retrieve your location. Showing default city.");
+                }
+            );
+        }
+
+        function initSearch() {
+            const searchInput = document.getElementById('searchInput');
+            const searchResults = document.getElementById('searchResults');
+            let debounceTimer = null;
+
+            searchInput.addEventListener('input', (e) => {
+                clearTimeout(debounceTimer);
+                const query = e.target.value.trim();
+                if (query.length < 2) {
+                    searchResults.classList.add('hidden');
+                    return;
+                }
+
+                debounceTimer = setTimeout(async () => {
+                    try {
+                        const res = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(query)}&count=5&language=en&format=json`);
+                        const data = await res.json();
+
+                        if (data.results && data.results.length > 0) {
+                            searchResults.innerHTML = data.results.map(city => `
+                                <div onclick='selectCity(${JSON.stringify({
+                                    name: city.name,
+                                    country: city.country || '',
+                                    admin1: city.admin1 || '',
+                                    latitude: city.latitude,
+                                    longitude: city.longitude
+                                }).replace(/'/g, "&apos;")})' class="p-3 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer flex items-center justify-between text-sm transition-colors">
+                                    <div class="flex items-center gap-2">
+                                        <i data-lucide="map-pin" class="w-4 h-4 text-sky-500"></i>
+                                        <span class="font-bold text-slate-800 dark:text-slate-100">${city.name}</span>
+                                        <span class="text-xs text-slate-400">${city.admin1 ? city.admin1 + ', ' : ''}${city.country || ''}</span>
+                                    </div>
+                                    <span class="text-[10px] bg-slate-200 dark:bg-slate-800 px-2 py-0.5 rounded text-slate-500">Select</span>
+                                </div>
+                            `).join('');
+                            searchResults.classList.remove('hidden');
+                            lucide.createIcons();
+                        } else {
+                            searchResults.innerHTML = `<div class="p-4 text-xs text-slate-400 text-center">No matching cities found.</div>`;
+                            searchResults.classList.remove('hidden');
+                        }
+                    } catch (err) {
+                        console.error("Search error", err);
+                    }
+                }, 300);
+            });
+
+            document.addEventListener('click', (e) => {
+                if (!searchInput.contains(e.target) && !searchResults.contains(e.target)) {
+                    searchResults.classList.add('hidden');
+                }
+            });
+        }
+
+        function selectCity(cityObj) {
+            document.getElementById('searchResults').classList.add('hidden');
+            document.getElementById('searchInput').value = '';
+            loadCityData(cityObj);
+        }
+
+        async function loadCityData(cityObj) {
+            currentCityData = cityObj;
+            updateFavStarIcon();
+
+            const unitTemp = currentUnits === 'metric' ? 'celsius' : 'fahrenheit';
+            const unitWind = currentUnits === 'metric' ? 'kmh' : 'mph';
+
+            const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${cityObj.latitude}&longitude=${cityObj.longitude}&current=temperature_2m,relative_humidity_2m,apparent_temperature,is_day,precipitation,rain,showers,snowfall,weather_code,cloud_cover,pressure_msl,surface_pressure,wind_speed_10m,wind_direction_10m,wind_gusts_10m&hourly=temperature_2m,relative_humidity_2m,dew_point_2m,apparent_temperature,precipitation_probability,precipitation,weather_code,pressure_msl,surface_pressure,cloud_cover,visibility,wind_speed_10m,uv_index,is_day&daily=weather_code,temperature_2m_max,temperature_2m_min,apparent_temperature_max,apparent_temperature_min,sunrise,sunset,uv_index_max,precipitation_sum,precipitation_probability_max,wind_speed_10m_max,wind_gusts_10m_max&temperature_unit=${unitTemp}&wind_speed_unit=${unitWind}&timezone=auto`;
+
+            const aqiUrl = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${cityObj.latitude}&longitude=${cityObj.longitude}&current=us_aqi,pm10,pm2_5,carbon_monoxide,nitrogen_dioxide,sulphur_dioxide,ozone&timezone=auto`;
+
+            try {
+                const [wRes, aRes] = await Promise.all([
+                    fetch(weatherUrl),
+                    fetch(aqiUrl)
+                ]);
+
+                weatherData = await wRes.json();
+                airQualityData = await aRes.json();
+
+                // Render everything with plain-English decoders
+                renderUI();
+            } catch (err) {
+                console.error("Error fetching weather data", err);
+                alert("Failed to load weather data. Please try again.");
+            }
+        }
+
+        function renderUI() {
+            if (!weatherData || !weatherData.current) return;
+
+            const cur = weatherData.current;
+            const hourly = weatherData.hourly;
+            const daily = weatherData.daily;
+            const aqiVal = airQualityData?.current?.us_aqi || 35; // Default clear fallback
+
+            // 1. City & Local Time Header
+            document.getElementById('cityNameDisplay').textContent = currentCityData.name;
+            document.getElementById('countryTag').textContent = currentCityData.country || currentCityData.admin1 || 'Location';
+            
+            const localTimeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            document.getElementById('localTimeDisplay').textContent = `Local Time: ${localTimeStr}`;
+
+            // 2. Current Temp & Thermal Comfort
+            const tempSymbol = currentUnits === 'metric' ? '°C' : '°F';
+            const windSymbol = currentUnits === 'metric' ? 'km/h' : 'mph';
+
+            document.getElementById('currentTemp').textContent = `${Math.round(cur.temperature_2m)}${tempSymbol}`;
+            document.getElementById('currentFeelsLike').textContent = `${Math.round(cur.apparent_temperature)}${tempSymbol}`;
+            
+            const maxTempToday = Math.round(daily.temperature_2m_max[0]);
+            const minTempToday = Math.round(daily.temperature_2m_min[0]);
+            document.getElementById('highLowDisplay').textContent = `High: ${maxTempToday}${tempSymbol} • Low: ${minTempToday}${tempSymbol}`;
+
+            // Weather Code condition text & Icon
+            const wInfo = getWmoInfo(cur.weather_code);
+            document.getElementById('weatherConditionText').textContent = wInfo.text;
+            document.getElementById('weatherMainIconContainer').innerHTML = `<i data-lucide="${wInfo.icon}" class="w-8 h-8 text-sky-500"></i>`;
+
+            // Thermal Comfort Plain-English Explanation
+            const tempDiff = cur.apparent_temperature - cur.temperature_2m;
+            let thermalComfortText = "";
+            if (Math.abs(tempDiff) < 1.5) {
+                thermalComfortText = "Feels accurate to thermometer temp. Balanced moisture & breeze.";
+            } else if (tempDiff >= 1.5) {
+                thermalComfortText = `Feels ${Math.abs(Math.round(tempDiff))}° warmer due to humidity & light wind.`;
+            } else {
+                thermalComfortText = `Feels ${Math.abs(Math.round(tempDiff))}° colder due to wind chill factor.`;
+            }
+            document.getElementById('thermalComfortTag').textContent = thermalComfortText;
+
+            // 3. Conversational AI Header Summary
+            renderConversationalSummary(cur, hourly, daily, aqiVal, wInfo);
+
+            // 4. Decode Cards Data
+            // UV Index
+            const currentUv = hourly.uv_index ? hourly.uv_index[0] : (daily.uv_index_max ? daily.uv_index_max[0] : 0);
+            const uvDec = decodeUv(currentUv);
+            document.getElementById('quickUvText').textContent = `${currentUv.toFixed(1)} (${uvDec.category})`;
+            document.getElementById('quickUvBadge').textContent = uvDec.actionShort;
+            document.getElementById('cardUvVal').textContent = currentUv.toFixed(1);
+            document.getElementById('cardUvCat').textContent = uvDec.category;
+            document.getElementById('cardUvCat').className = `text-xs font-bold px-2 py-0.5 rounded-full ${uvDec.badgeClass}`;
+            document.getElementById('cardUvMeter').style.width = `${Math.min(100, (currentUv / 12) * 100)}%`;
+            document.getElementById('cardUvMeter').className = `h-full meter-bar ${uvDec.barClass}`;
+            document.getElementById('cardUvAdvice').textContent = uvDec.advice;
+
+            // AQI
+            const aqiDec = decodeAqi(aqiVal);
+            document.getElementById('quickAqiText').textContent = `${Math.round(aqiVal)} - ${aqiDec.category}`;
+            document.getElementById('quickAqiBadge').textContent = aqiDec.actionShort;
+            document.getElementById('cardAqiVal').textContent = Math.round(aqiVal);
+            document.getElementById('cardAqiCat').textContent = aqiDec.category;
+            document.getElementById('cardAqiCat').className = `text-xs font-bold px-2 py-0.5 rounded-full ${aqiDec.badgeClass}`;
+            document.getElementById('cardAqiMeter').style.width = `${Math.min(100, (aqiVal / 300) * 100)}%`;
+            document.getElementById('cardAqiMeter').className = `h-full meter-bar ${aqiDec.barClass}`;
+            document.getElementById('cardAqiAdvice').textContent = aqiDec.advice;
+
+            // Humidity & Dew Point
+            const curHumidity = cur.relative_humidity_2m;
+            const curDewPoint = hourly.dew_point_2m ? hourly.dew_point_2m[0] : (cur.temperature_2m - ((100 - curHumidity) / 5));
+            const humDec = decodeHumidity(curHumidity, curDewPoint);
+            document.getElementById('quickHumidityText').textContent = `${curHumidity}% (${humDec.category})`;
+            document.getElementById('quickHumidityBadge').textContent = `Dew Pt: ${Math.round(curDewPoint)}${tempSymbol}`;
+            document.getElementById('cardHumidityVal').textContent = `${curHumidity}%`;
+            document.getElementById('cardDewPointVal').textContent = `Dew Pt: ${Math.round(curDewPoint)}${tempSymbol}`;
+            document.getElementById('cardHumidityMeter').style.width = `${curHumidity}%`;
+            document.getElementById('cardHumidityAdvice').textContent = humDec.advice;
+
+            // Wind & Gusts
+            const curWind = cur.wind_speed_10m;
+            const curGusts = cur.wind_gusts_10m || curWind * 1.3;
+            const windDec = decodeWind(curWind);
+            document.getElementById('quickWindText').textContent = `${Math.round(curWind)} ${windSymbol}`;
+            document.getElementById('quickWindBadge').textContent = windDec.category;
+            document.getElementById('cardWindVal').textContent = `${Math.round(curWind)} ${windSymbol}`;
+            document.getElementById('cardGustsVal').textContent = `Gusts: ${Math.round(curGusts)} ${windSymbol}`;
+            document.getElementById('cardWindScale').textContent = windDec.category;
+            document.getElementById('cardWindAdvice').textContent = windDec.advice;
+
+            // Pressure & Trend
+            const curPress = cur.pressure_msl || cur.surface_pressure;
+            const pressDec = decodePressure(curPress, hourly.pressure_msl);
+            document.getElementById('cardPressureVal').textContent = `${Math.round(curPress)} hPa`;
+            document.getElementById('cardPressureTrend').textContent = pressDec.trendArrow;
+            document.getElementById('cardPressureCat').textContent = pressDec.category;
+            document.getElementById('cardPressureAdvice').textContent = pressDec.advice;
+
+            // Visibility
+            const curVisMeters = hourly.visibility ? hourly.visibility[0] : 10000;
+            const curVisKm = curVisMeters / 1000;
+            const visDec = decodeVisibility(curVisKm);
+            document.getElementById('cardVisVal').textContent = `${curVisKm.toFixed(1)} km`;
+            document.getElementById('cardVisCat').textContent = visDec.category;
+            document.getElementById('cardVisCat').className = `text-xs font-bold px-2 py-0.5 rounded-full ${visDec.badgeClass}`;
+            document.getElementById('cardVisMeter').style.width = `${Math.min(100, (curVisKm / 10) * 100)}%`;
+            document.getElementById('cardVisAdvice').textContent = visDec.advice;
+
+            // Rain Probability & Volume
+            const rainProb = hourly.precipitation_probability ? hourly.precipitation_probability[0] : (cur.precipitation > 0 ? 90 : 10);
+            const rainVol = cur.precipitation || (hourly.precipitation ? hourly.precipitation[0] : 0);
+            const rainDec = decodeRain(rainProb, rainVol);
+            document.getElementById('cardRainProbVal').textContent = `${rainProb}%`;
+            document.getElementById('cardRainVolumeVal').textContent = `Vol: ${rainVol.toFixed(1)} mm`;
+            document.getElementById('cardRainMeter').style.width = `${rainProb}%`;
+            document.getElementById('cardRainAdvice').textContent = rainDec.advice;
+
+            // Cloud Cover
+            const curCloud = cur.cloud_cover;
+            const cloudDec = decodeClouds(curCloud);
+            document.getElementById('cardCloudVal').textContent = `${curCloud}%`;
+            document.getElementById('cardCloudCat').textContent = cloudDec.category;
+            document.getElementById('cardCloudMeter').style.width = `${curCloud}%`;
+            document.getElementById('cardCloudAdvice').textContent = cloudDec.advice;
+
+            // Severe Weather Alert Check
+            checkSevereWeatherAlerts(cur, rainProb, currentUv, aqiVal, curWind);
+
+            // 5. Smart Lifestyle & Outfit Recommendations
+            renderOutfitAndActivities(cur, rainProb, rainVol, curWind, currentUv, aqiVal, curVisKm);
+
+            // 6. Interactive Hourly Chart & Hourly Cards
+            renderHourlyChartAndCards();
+
+            // 7. 7-Day Forecast
+            renderDailyForecast();
+
+            lucide.createIcons();
+        }
+
+        function renderConversationalSummary(cur, hourly, daily, aqiVal, wInfo) {
+            const tempSymbol = currentUnits === 'metric' ? '°C' : '°F';
+            const cityName = currentCityData.name;
+            const currentTemp = Math.round(cur.temperature_2m);
+            const maxTemp = Math.round(daily.temperature_2m_max[0]);
+            
+            // Check upcoming rain in 24 hours
+            let rainHour = -1;
+            if (hourly.precipitation_probability) {
+                for (let i = 0; i < 24; i++) {
+                    if (hourly.precipitation_probability[i] >= 50) {
+                        rainHour = i;
+                        break;
+                    }
+                }
+            }
+
+            let story = `Good day in ${cityName}! Expect ${wInfo.text.toLowerCase()} conditions with temperatures around ${currentTemp}${tempSymbol} (reaching a high of ${maxTemp}${tempSymbol}).`;
+            
+            if (rainHour >= 0) {
+                const hourTimeStr = new Date(hourly.time[rainHour]).toLocaleTimeString([], { hour: 'numeric', hour12: true });
+                story += ` Rain showers are likely around ${hourTimeStr}, so keep an umbrella close by!`;
+            } else {
+                story += ` Skies remain mostly clear of heavy rain for the rest of the day.`;
+            }
+
+            document.getElementById('aiConversationalSummary').textContent = story;
+
+            // Practical Takeaway Tip
+            let actionTip = "";
+            if (cur.temperature_2m > 28) {
+                actionTip = "Stay hydrated and seek shaded spots during peak afternoon heat.";
+            } else if (cur.temperature_2m < 10) {
+                actionTip = "Cold conditions today—bundle up in warm layers before heading out.";
+            } else if (rainHour >= 0) {
+                actionTip = "Carry a waterproof jacket or collapsible umbrella for late afternoon commute.";
+            } else if (aqiVal > 100) {
+                actionTip = "Air quality is degraded today—consider moving cardio workouts indoors.";
+            } else {
+                actionTip = "Great balanced weather today! Enjoy outdoor walks and open-air activities.";
+            }
+
+            document.getElementById('aiActionTip').innerHTML = `
+                <i data-lucide="lightbulb" class="w-4 h-4 text-amber-500 shrink-0"></i>
+                <span>${actionTip}</span>
+            `;
+        }
+
+        function checkSevereWeatherAlerts(cur, rainProb, uvVal, aqiVal, windVal) {
+            const alertBanner = document.getElementById('alertBanner');
+            const alertTitle = document.getElementById('alertTitle');
+            const alertBody = document.getElementById('alertBody');
+
+            let hasAlert = false;
+            let title = "";
+            let body = "";
+
+            if (windVal > 50) {
+                hasAlert = true;
+                title = "High Wind Warning!";
+                body = `Sustained winds of ${Math.round(windVal)} ${currentUnits==='metric'?'km/h':'mph'}. Loose outdoor items may blow away. Exercise caution when driving.`;
+            } else if (aqiVal > 150) {
+                hasAlert = true;
+                title = "Unhealthy Air Quality Alert!";
+                body = `Air Quality Index is ${Math.round(aqiVal)}. Sensitive groups and general public should avoid outdoor exertion.`;
+            } else if (cur.temperature_2m > 38 && currentUnits === 'metric') {
+                hasAlert = true;
+                title = "Extreme Heat Warning!";
+                body = `Temperatures reaching ${Math.round(cur.temperature_2m)}°C. High risk of heat exhaustion. Stay indoors in air conditioning.`;
+            } else if (rainProb > 80 && cur.precipitation > 5) {
+                hasAlert = true;
+                title = "Heavy Precipitation Alert!";
+                body = `Active heavy downpours occurring. Watch out for localized street puddles and low driving visibility.`;
+            }
+
+            if (hasAlert) {
+                alertTitle.textContent = title;
+                alertBody.textContent = body;
+                alertBanner.classList.remove('hidden');
+            } else {
+                alertBanner.classList.add('hidden');
+            }
+        }
+
+        function renderOutfitAndActivities(cur, rainProb, rainVol, windVal, uvVal, aqiVal, visKm) {
+            const temp = cur.temperature_2m;
+            const tempC = currentUnits === 'metric' ? temp : (temp - 32) * 5/9;
+
+            // Outfit items calculation
+            let top = { icon: "shirt", label: "T-Shirt / Linen" };
+            let bottom = { icon: "scissors", label: "Shorts / Skirt" };
+            let outer = { icon: "sun", label: "No Outerwear" };
+            let footwear = { icon: "footprints", label: "Light Sneakers" };
+            let headwear = { icon: "smile", label: "Sunglasses / Hat" };
+            let accessory = { icon: "droplet", label: "Water Bottle" };
+
+            if (tempC < 5) {
+                top = { icon: "shirt", label: "Thermal Sweater" };
+                bottom = { icon: "shield", label: "Warm Pants / Jeans" };
+                outer = { icon: "snowflake", label: "Heavy Winter Coat" };
+                footwear = { icon: "footprints", label: "Insulated Boots" };
+                headwear = { icon: "sparkles", label: "Beanie & Scarf" };
+            } else if (tempC < 15) {
+                top = { icon: "shirt", label: "Long Sleeve Shirt" };
+                bottom = { icon: "shield", label: "Jeans / Trousers" };
+                outer = { icon: "cloud-sun", label: "Jacket or Fleece" };
+            } else if (tempC > 28) {
+                headwear = { icon: "sun", label: "UV Cap & Sunglasses" };
+                accessory = { icon: "droplet", label: "SPF 50 Sunscreen" };
+            }
+
+            if (rainProb > 40 || rainVol > 0.5) {
+                outer = { icon: "cloud-rain", label: "Waterproof Raincoat" };
+                accessory = { icon: "umbrella", label: "Collapsible Umbrella" };
+            }
+
+            const outfitGrid = document.getElementById('outfitListGrid');
+            outfitGrid.innerHTML = `
+                <div class="p-2.5 rounded-xl bg-white/80 dark:bg-slate-800/80 text-center space-y-1 shadow-sm">
+                    <i data-lucide="${top.icon}" class="w-5 h-5 mx-auto text-sky-500"></i>
+                    <p class="text-[10px] text-slate-400 font-semibold">TOP</p>
+                    <p class="text-xs font-bold text-slate-800 dark:text-slate-100">${top.label}</p>
+                </div>
+                <div class="p-2.5 rounded-xl bg-white/80 dark:bg-slate-800/80 text-center space-y-1 shadow-sm">
+                    <i data-lucide="${bottom.icon}" class="w-5 h-5 mx-auto text-indigo-500"></i>
+                    <p class="text-[10px] text-slate-400 font-semibold">BOTTOM</p>
+                    <p class="text-xs font-bold text-slate-800 dark:text-slate-100">${bottom.label}</p>
+                </div>
+                <div class="p-2.5 rounded-xl bg-white/80 dark:bg-slate-800/80 text-center space-y-1 shadow-sm">
+                    <i data-lucide="${outer.icon}" class="w-5 h-5 mx-auto text-purple-500"></i>
+                    <p class="text-[10px] text-slate-400 font-semibold">OUTERWEAR</p>
+                    <p class="text-xs font-bold text-slate-800 dark:text-slate-100">${outer.label}</p>
+                </div>
+                <div class="p-2.5 rounded-xl bg-white/80 dark:bg-slate-800/80 text-center space-y-1 shadow-sm">
+                    <i data-lucide="${footwear.icon}" class="w-5 h-5 mx-auto text-emerald-500"></i>
+                    <p class="text-[10px] text-slate-400 font-semibold">FOOTWEAR</p>
+                    <p class="text-xs font-bold text-slate-800 dark:text-slate-100">${footwear.label}</p>
+                </div>
+                <div class="p-2.5 rounded-xl bg-white/80 dark:bg-slate-800/80 text-center space-y-1 shadow-sm">
+                    <i data-lucide="${headwear.icon}" class="w-5 h-5 mx-auto text-amber-500"></i>
+                    <p class="text-[10px] text-slate-400 font-semibold">HEADWEAR</p>
+                    <p class="text-xs font-bold text-slate-800 dark:text-slate-100">${headwear.label}</p>
+                </div>
+                <div class="p-2.5 rounded-xl bg-white/80 dark:bg-slate-800/80 text-center space-y-1 shadow-sm">
+                    <i data-lucide="${accessory.icon}" class="w-5 h-5 mx-auto text-teal-500"></i>
+                    <p class="text-[10px] text-slate-400 font-semibold">ESSENTIAL</p>
+                    <p class="text-xs font-bold text-slate-800 dark:text-slate-100">${accessory.label}</p>
+                </div>
+            `;
+
+            document.getElementById('outfitSummaryNote').textContent = `Outfit advice tailored for ${Math.round(temp)}${currentUnits==='metric'?'°C':'°F'} thermal feeling, ${rainProb}% rain risk, and UV level ${uvVal.toFixed(1)}.`;
+
+            // Activity Scores
+            // 1. Running
+            let runScore = "Great 🟢";
+            let runAdvice = "Ideal temperature and comfortable air for jogging!";
+            if (tempC > 28 || tempC < 2 || rainProb > 60 || aqiVal > 100) {
+                runScore = "Caution 🟠";
+                runAdvice = aqiVal > 100 ? "AQI is high. Exercise indoors." : "High heat or rain risk. Take frequent water breaks.";
+            }
+            document.getElementById('actRunningBadge').textContent = runScore;
+            document.getElementById('actRunningAdvice').textContent = runAdvice;
+
+            // 2. Laundry
+            let laundScore = "Fast 🟢";
+            let laundAdvice = "Dries rapidly outdoors under moderate breeze.";
+            if (rainProb > 30) {
+                laundScore = "Avoid 🔴";
+                laundAdvice = "Rain risk detected! Dry laundry indoors today.";
+            } else if (cur.relative_humidity_2m > 75) {
+                laundScore = "Slow 🟡";
+                laundAdvice = "High humidity means clothes will dry very slowly.";
+            }
+            document.getElementById('actLaundryBadge').textContent = laundScore;
+            document.getElementById('actLaundryAdvice').textContent = laundAdvice;
+
+            // 3. Driving
+            let drivScore = "Clear 🟢";
+            let drivAdvice = "Great road visibility and dry pavements.";
+            if (visKm < 3 || rainVol > 4 || windVal > 45) {
+                drivScore = "Hazard 🔴";
+                drivAdvice = "Low visibility or heavy rain. Reduce speed and keep headlights on.";
+            } else if (rainProb > 40) {
+                drivScore = "Caution 🟡";
+                drivAdvice = "Wet roads expected. Increase braking distance.";
+            }
+            document.getElementById('actDrivingBadge').textContent = drivScore;
+            document.getElementById('actDrivingAdvice').textContent = drivAdvice;
+
+            // 4. Gardening
+            let gardScore = "Water Needed 🪴";
+            let gardAdvice = "No rain expected. Give outdoor garden plants a thorough watering.";
+            if (rainVol > 3 || rainProb > 70) {
+                gardScore = "Rain Takes Care 🌧️";
+                gardAdvice = "Natural rain will water your plants today!";
+            } else if (tempC < 2) {
+                gardScore = "Frost Risk ❄️";
+                gardAdvice = "Protect sensitive potted plants from freezing night temps.";
+            }
+            document.getElementById('actGardeningBadge').textContent = gardScore;
+            document.getElementById('actGardeningAdvice').textContent = gardAdvice;
+
+            // 5. Dining
+            let dinScore = "Great 🟢";
+            let dinAdvice = "Pleasant weather window for outdoor lunch or coffee.";
+            if (rainProb > 40 || windVal > 30 || tempC < 12) {
+                dinScore = "Prefer Indoors 🔴";
+                dinAdvice = "Wind or rain chance makes indoor seating much cozier.";
+            }
+            document.getElementById('actDiningBadge').textContent = dinScore;
+            document.getElementById('actDiningAdvice').textContent = dinAdvice;
+        }
+
+        function renderHourlyChartAndCards() {
+            const hourly = weatherData.hourly;
+            if (!hourly) return;
+
+            const timeLabels = [];
+            const tempVals = [];
+            const rainVals = [];
+            const windVals = [];
+            const uvVals = [];
+
+            // Next 24 hours
+            const next24 = hourly.time.slice(0, 24);
+            next24.forEach((t, i) => {
+                const dateObj = new Date(t);
+                const timeStr = dateObj.toLocaleTimeString([], { hour: 'numeric', hour12: true });
+                timeLabels.push(timeStr);
+                tempVals.push(Math.round(hourly.temperature_2m[i]));
+                rainVals.push(hourly.precipitation_probability ? hourly.precipitation_probability[i] : 0);
+                windVals.push(Math.round(hourly.wind_speed_10m[i]));
+                uvVals.push(hourly.uv_index ? hourly.uv_index[i] : 0);
+            });
+
+            // 1. Render Chart.js
+            const ctx = document.getElementById('hourlyChart').getContext('2d');
+            if (hourlyChartInstance) hourlyChartInstance.destroy();
+
+            let datasetData = tempVals;
+            let datasetLabel = `Temperature (${currentUnits==='metric'?'°C':'°F'})`;
+            let borderColor = '#0284c7';
+            let bgGradientStart = 'rgba(2, 132, 199, 0.3)';
+
+            if (currentChartMetric === 'rain') {
+                datasetData = rainVals;
+                datasetLabel = 'Rain Probability (%)';
+                borderColor = '#3b82f6';
+                bgGradientStart = 'rgba(59, 130, 246, 0.3)';
+            } else if (currentChartMetric === 'wind') {
+                datasetData = windVals;
+                datasetLabel = `Wind Speed (${currentUnits==='metric'?'km/h':'mph'})`;
+                borderColor = '#14b8a6';
+                bgGradientStart = 'rgba(20, 184, 166, 0.3)';
+            } else if (currentChartMetric === 'uv') {
+                datasetData = uvVals;
+                datasetLabel = 'UV Index';
+                borderColor = '#f59e0b';
+                bgGradientStart = 'rgba(245, 158, 11, 0.3)';
+            }
+
+            const gradient = ctx.createLinearGradient(0, 0, 0, 200);
+            gradient.addColorStop(0, bgGradientStart);
+            gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
+
+            hourlyChartInstance = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: timeLabels,
+                    datasets: [{
+                        label: datasetLabel,
+                        data: datasetData,
+                        borderColor: borderColor,
+                        borderWidth: 3,
+                        backgroundColor: gradient,
+                        fill: true,
+                        tension: 0.4,
+                        pointRadius: 4,
+                        pointHoverRadius: 6
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            mode: 'index',
+                            intersect: false,
+                        }
+                    },
+                    scales: {
+                        x: {
+                            grid: { display: false },
+                            ticks: { color: '#94a3b8', font: { size: 10 } }
+                        },
+                        y: {
+                            grid: { color: 'rgba(148, 163, 184, 0.1)' },
+                            ticks: { color: '#94a3b8', font: { size: 10 } }
+                        }
+                    }
+                }
+            });
+
+            // 2. Render Scrollable Hourly Cards
+            const cardsRow = document.getElementById('hourlyCardsRow');
+            cardsRow.innerHTML = next24.map((t, i) => {
+                const dateObj = new Date(t);
+                const timeStr = dateObj.toLocaleTimeString([], { hour: 'numeric', hour12: true });
+                const code = hourly.weather_code[i];
+                const w = getWmoInfo(code);
+                const rProb = hourly.precipitation_probability ? hourly.precipitation_probability[i] : 0;
+                
+                return `
+                    <div class="shrink-0 w-28 p-3 rounded-2xl bg-white/80 dark:bg-slate-900/80 border border-slate-200/60 dark:border-slate-800 text-center space-y-1.5 shadow-sm">
+                        <p class="text-xs font-bold text-slate-500">${timeStr}</p>
+                        <i data-lucide="${w.icon}" class="w-6 h-6 mx-auto text-sky-500"></i>
+                        <p class="text-sm font-extrabold text-slate-800 dark:text-slate-100">${Math.round(hourly.temperature_2m[i])}${currentUnits==='metric'?'°':'°'}</p>
+                        <div class="flex items-center justify-center gap-1 text-[10px] font-bold text-blue-500">
+                            <i data-lucide="droplet" class="w-3 h-3"></i>
+                            <span>${rProb}%</span>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            lucide.createIcons();
+        }
+
+        function switchChartMetric(metric) {
+            currentChartMetric = metric;
+            const btnIds = ['temp', 'rain', 'wind', 'uv'];
+            btnIds.forEach(m => {
+                const btn = document.getElementById(`chartTab${m.charAt(0).toUpperCase() + m.slice(1)}`);
+                if (m === metric) {
+                    btn.className = "px-3 py-1.5 rounded-lg text-xs font-semibold bg-white dark:bg-slate-800 text-sky-500 shadow-sm transition-all";
+                } else {
+                    btn.className = "px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-all";
+                }
+            });
+            renderHourlyChartAndCards();
+        }
+
+        function renderDailyForecast() {
+            const daily = weatherData.daily;
+            if (!daily) return;
+
+            const container = document.getElementById('dailyForecastContainer');
+            const tempSymbol = currentUnits === 'metric' ? '°C' : '°F';
+
+            container.innerHTML = daily.time.map((t, i) => {
+                const dateObj = new Date(t + 'T00:00:00');
+                const dayName = i === 0 ? "Today" : dateObj.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
+                const code = daily.weather_code[i];
+                const w = getWmoInfo(code);
+
+                const maxT = Math.round(daily.temperature_2m_max[i]);
+                const minT = Math.round(daily.temperature_2m_min[i]);
+                const rainProb = daily.precipitation_probability_max ? daily.precipitation_probability_max[i] : 0;
+                const rainSum = daily.precipitation_sum ? daily.precipitation_sum[i] : 0;
+                const peakUv = daily.uv_index_max ? daily.uv_index_max[i] : 0;
+
+                const sunriseStr = daily.sunrise ? new Date(daily.sunrise[i]).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : '--';
+                const sunsetStr = daily.sunset ? new Date(daily.sunset[i]).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : '--';
+
+                return `
+                    <div class="rounded-2xl bg-white/70 dark:bg-slate-900/70 border border-slate-200/60 dark:border-slate-800/80 overflow-hidden shadow-sm transition-all">
+                        <div onclick="toggleDailyExpand(${i})" class="p-4 flex items-center justify-between cursor-pointer hover:bg-slate-100/50 dark:hover:bg-slate-800/50">
+                            <div class="flex items-center gap-3 w-36">
+                                <i data-lucide="${w.icon}" class="w-6 h-6 text-sky-500 shrink-0"></i>
+                                <div>
+                                    <p class="font-bold text-sm text-slate-900 dark:text-white">${dayName}</p>
+                                    <p class="text-[11px] text-slate-400 truncate">${w.text}</p>
+                                </div>
+                            </div>
+
+                            <div class="flex items-center gap-2 text-xs font-semibold text-blue-500">
+                                <i data-lucide="cloud-rain" class="w-3.5 h-3.5"></i>
+                                <span>${rainProb}%</span>
+                            </div>
+
+                            <div class="flex items-center gap-3">
+                                <span class="text-sm font-black text-slate-900 dark:text-white">${maxT}${tempSymbol}</span>
+                                <span class="text-xs font-semibold text-slate-400">${minT}${tempSymbol}</span>
+                                <i id="dailyChevron-${i}" data-lucide="chevron-down" class="w-4 h-4 text-slate-400 transition-transform"></i>
+                            </div>
+                        </div>
+
+                        <!-- Expandable Details Drawer -->
+                        <div id="dailyDetails-${i}" class="hidden p-4 bg-slate-100/60 dark:bg-slate-900/90 border-t border-slate-200/50 dark:border-slate-800 text-xs space-y-3">
+                            <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 text-slate-600 dark:text-slate-300">
+                                <div>
+                                    <span class="text-slate-400 block text-[10px] font-bold">PEAK UV INDEX</span>
+                                    <span class="font-bold text-slate-800 dark:text-slate-100">${peakUv.toFixed(1)} (${decodeUv(peakUv).category})</span>
+                                </div>
+                                <div>
+                                    <span class="text-slate-400 block text-[10px] font-bold">EXPECTED RAIN</span>
+                                    <span class="font-bold text-slate-800 dark:text-slate-100">${rainSum.toFixed(1)} mm total</span>
+                                </div>
+                                <div>
+                                    <span class="text-slate-400 block text-[10px] font-bold">SUNRISE</span>
+                                    <span class="font-bold text-slate-800 dark:text-slate-100">${sunriseStr}</span>
+                                </div>
+                                <div>
+                                    <span class="text-slate-400 block text-[10px] font-bold">SUNSET</span>
+                                    <span class="font-bold text-slate-800 dark:text-slate-100">${sunsetStr}</span>
+                                </div>
+                            </div>
+                            <p class="text-[11px] text-slate-500 italic">
+                                Plain-English Advice: ${rainProb > 50 ? 'Plan indoor rain options or take an umbrella.' : 'Favorable conditions for daytime travel and outdoor activities.'}
+                            </p>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            lucide.createIcons();
+        }
+
+        function toggleDailyExpand(idx) {
+            const details = document.getElementById(`dailyDetails-${idx}`);
+            const chevron = document.getElementById(`dailyChevron-${idx}`);
+            if (details.classList.contains('hidden')) {
+                details.classList.remove('hidden');
+                chevron.style.transform = 'rotate(180deg)';
+            } else {
+                details.classList.add('hidden');
+                chevron.style.transform = 'rotate(0deg)';
+            }
+        }
+
+        function initGlossary() {
+            renderGlossary('');
+        }
+
+        function renderGlossary(filterText) {
+            const container = document.getElementById('glossaryGrid');
+            const filtered = GLOSSARY_TERMS.filter(item => 
+                item.term.toLowerCase().includes(filterText.toLowerCase()) ||
+                item.def.toLowerCase().includes(filterText.toLowerCase()) ||
+                item.category.toLowerCase().includes(filterText.toLowerCase())
+            );
+
+            if (filtered.length === 0) {
+                container.innerHTML = `<p class="col-span-full text-xs text-slate-400 italic text-center py-4">No matching terms found in weather glossary.</p>`;
+                return;
+            }
+
+            container.innerHTML = filtered.map(item => `
+                <div class="p-4 rounded-2xl bg-white/70 dark:bg-slate-900/70 border border-slate-200/60 dark:border-slate-800 space-y-1.5 shadow-sm">
+                    <div class="flex items-center justify-between">
+                        <h4 class="font-bold text-sm text-slate-900 dark:text-white">${item.term}</h4>
+                        <span class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-teal-500/10 text-teal-600 dark:text-teal-400">${item.category}</span>
+                    </div>
+                    <p class="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">${item.def}</p>
+                </div>
+            `).join('');
+        }
+
+        function openExplainerModal(key) {
+            const data = EXPLAINER_DATA[key];
+            if (!data) return;
+
+            document.getElementById('modalTitle').textContent = data.title;
+            document.getElementById('modalSubtitle').textContent = data.subtitle;
+            document.getElementById('modalDescription').textContent = data.description;
+            document.getElementById('modalWhyMatters').textContent = data.whyMatters;
+
+            document.getElementById('modalIconBox').innerHTML = `<i data-lucide="${data.icon}" class="w-6 h-6 text-sky-500"></i>`;
+
+            const scaleContainer = document.getElementById('modalScaleGuide');
+            scaleContainer.innerHTML = data.scale.map(s => `
+                <div class="p-2 rounded-xl bg-white/80 dark:bg-slate-900/80 border border-slate-200/50 dark:border-slate-700/50 flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                    <span class="font-bold text-slate-800 dark:text-slate-100 shrink-0">${s.range}</span>
+                    <span class="text-slate-500 text-[11px]">${s.desc}</span>
+                </div>
+            `).join('');
+
+            document.getElementById('explainerModal').classList.remove('hidden');
+            lucide.createIcons();
+        }
+
+        function closeExplainerModal() {
+            document.getElementById('explainerModal').classList.add('hidden');
+        }
+
+        function decodeUv(val) {
+            if (val <= 2) return { category: "Low 🟢", advice: "Minimal sunburn risk. Safe to stay outside without sunscreen unless burning easily.", badgeClass: "bg-emerald-500/20 text-emerald-700 dark:text-emerald-300", barClass: "bg-emerald-500", actionShort: "Safe" };
+            if (val <= 5) return { category: "Moderate 🟡", advice: "Wear SPF 30+ sunscreen if outdoors for >45 mins. Seek midday shade.", badgeClass: "bg-amber-500/20 text-amber-700 dark:text-amber-300", barClass: "bg-amber-500", actionShort: "Wear SPF 30+" };
+            if (val <= 7) return { category: "High 🟠", advice: "Wear SPF 30+ sunscreen, sunglasses & hat. Unprotected skin burns in 20-30 mins.", badgeClass: "bg-orange-500/20 text-orange-700 dark:text-orange-300", barClass: "bg-orange-500", actionShort: "Skin Burns in 20m" };
+            if (val <= 10) return { category: "Very High 🔴", advice: "Limit midday sun (10am-4pm). Reapply sunscreen every 2 hours. Skin burns in 15 mins.", badgeClass: "bg-red-500/20 text-red-700 dark:text-red-300", barClass: "bg-red-500", actionShort: "Avoid Midday Sun" };
+            return { category: "Extreme 🟣", advice: "Hazardous solar radiation! Avoid sun exposure. Unprotected skin burns in <10 mins.", badgeClass: "bg-purple-500/20 text-purple-700 dark:text-purple-300", barClass: "bg-purple-500", actionShort: "Extreme Hazard" };
+        }
+
+        function decodeAqi(val) {
+            if (val <= 50) return { category: "Good 🟢", advice: "Satisfactory air quality. Ideal conditions for all outdoor workouts and sports.", badgeClass: "bg-emerald-500/20 text-emerald-700 dark:text-emerald-300", barClass: "bg-emerald-500", actionShort: "Great Air" };
+            if (val <= 100) return { category: "Moderate 🟡", advice: "Acceptable air quality. Unusually sensitive people should take light breaks.", badgeClass: "bg-amber-500/20 text-amber-700 dark:text-amber-300", barClass: "bg-amber-500", actionShort: "Acceptable" };
+            if (val <= 150) return { category: "Sensitive Caution 🟠", advice: "Asthmatics, kids & seniors should avoid intense prolonged outdoor exercise.", badgeClass: "bg-orange-500/20 text-orange-700 dark:text-orange-300", barClass: "bg-orange-500", actionShort: "Limit Cardio" };
+            if (val <= 200) return { category: "Unhealthy 🔴", advice: "Everyone may experience health irritation. Move sports activities indoors.", badgeClass: "bg-red-500/20 text-red-700 dark:text-red-300", barClass: "bg-red-500", actionShort: "Exercise Indoors" };
+            return { category: "Hazardous 🟤", advice: "Health alert! Keep windows closed and wear an N95 mask outdoors.", badgeClass: "bg-purple-500/20 text-purple-700 dark:text-purple-300", barClass: "bg-purple-500", actionShort: "Stay Indoors" };
+        }
+
+        function decodeHumidity(hum, dew) {
+            if (dew < 10) return { category: "Dry & Crisp", advice: "Low moisture air. Sweat evaporates easily. Keep skin moisturized." };
+            if (dew <= 15) return { category: "Comfortable & Ideal", advice: "Optimal moisture balance. Fresh, refreshing feeling outdoors." };
+            if (dew <= 18) return { category: "Slightly Humid", advice: "Noticeable air moisture. You will feel slightly warm during exertion." };
+            if (dew <= 21) return { category: "Muggy & Sticky", advice: "High humidity! Sweat evaporates slowly, making it feel stickier and hotter." };
+            return { category: "Oppressive & Sweltering", advice: "Extreme mugginess! Heavy air feeling. High risk of heat exhaustion." };
+        }
+
+        function decodeWind(spd) {
+            if (spd < 12) return { category: "Light Breeze 🍃", advice: "Gentle air movement. Leaves rustle softly." };
+            if (spd < 28) return { category: "Moderate Breeze 💨", advice: "Tree branches move, light dust flies, umbrellas wobble slightly." };
+            if (spd < 49) return { category: "Strong Breeze 🌬️", advice: "Large branches in motion. Umbrellas turn inside out!" };
+            return { category: "High Wind / Gale ⚠️", advice: "Whole trees sway. Outdoor furniture shifts. Drive with caution." };
+        }
+
+        function decodePressure(press, pressArray) {
+            let trendArrow = "➡️ Steady";
+            if (pressArray && pressArray.length >= 4) {
+                const diff = press - pressArray[3];
+                if (diff > 1.2) trendArrow = "↗ Rising";
+                else if (diff < -1.2) trendArrow = "↘ Falling";
+            }
+
+            let cat = "Normal Pressure";
+            let adv = "Steady weather unlikely to change rapidly.";
+
+            if (press > 1020) {
+                cat = "High Pressure";
+                adv = "Stable atmosphere ensuring clear, dry, fair weather.";
+            } else if (press < 1008) {
+                cat = "Low Pressure";
+                adv = trendArrow.includes("Falling") ? "Dropping pressure signals approaching rain/storm within 6-12 hours." : "Unstable air bringing cloudiness or showers.";
+            }
+
+            return { category: cat, trendArrow, advice: adv };
+        }
+
+        function decodeVisibility(km) {
+            if (km >= 10) return { category: "Excellent 🟢", advice: "Crystal clear view. Safe for all driving and sightseeing.", badgeClass: "bg-emerald-500/20 text-emerald-700 dark:text-emerald-300" };
+            if (km >= 4) return { category: "Good 🟡", advice: "Light haze or drizzle. Normal driving safety.", badgeClass: "bg-amber-500/20 text-amber-700 dark:text-amber-300" };
+            return { category: "Poor / Fog 🔴", advice: "Dense fog or heavy downpour! Drive slowly with low beams.", badgeClass: "bg-red-500/20 text-red-700 dark:text-red-300" };
+        }
+
+        function decodeRain(prob, vol) {
+            if (prob < 20) return { advice: "No rain expected today. Safe for open-air plans." };
+            if (prob < 50) return { advice: "Passing light sprinkle possible. Carry a light coat." };
+            if (prob < 70) return { advice: "Rain shower likely around peak hours. Bring an umbrella." };
+            return { advice: "High rain likelihood! Expect wet roads and carry waterproof gear." };
+        }
+
+        function decodeClouds(pct) {
+            if (pct < 20) return { category: "Sunny / Clear ☀️", advice: "Direct sunshine all day. Bright outdoor conditions." };
+            if (pct < 60) return { category: "Partly Cloudy ⛅", advice: "Pleasant blend of blue sky dome and passing clouds." };
+            if (pct < 90) return { category: "Mostly Cloudy 🌥️", advice: "Filtered sunlight with overcast sky breaks." };
+            return { category: "Overcast ☁️", advice: "Full gray cloud sky dome. Minimal direct sun." };
+        }
+
+        function getWmoInfo(code) {
+            const map = {
+                0: { text: "Clear Sky", icon: "sun" },
+                1: { text: "Mainly Clear", icon: "sun-medium" },
+                2: { text: "Partly Cloudy", icon: "cloud-sun" },
+                3: { text: "Overcast", icon: "cloud" },
+                45: { text: "Foggy", icon: "cloud-fog" },
+                48: { text: "Freezing Fog", icon: "snowflake" },
+                51: { text: "Light Drizzle", icon: "cloud-drizzle" },
+                53: { text: "Moderate Drizzle", icon: "cloud-drizzle" },
+                55: { text: "Dense Drizzle", icon: "cloud-rain" },
+                61: { text: "Slight Rain", icon: "cloud-rain" },
+                63: { text: "Moderate Rain", icon: "cloud-rain" },
+                65: { text: "Heavy Rain", icon: "cloud-lightning" },
+                71: { text: "Light Snow", icon: "snowflake" },
+                73: { text: "Moderate Snow", icon: "snowflake" },
+                75: { text: "Heavy Snow", icon: "snowflake" },
+                80: { text: "Rain Showers", icon: "cloud-rain" },
+                81: { text: "Moderate Showers", icon: "cloud-rain" },
+                82: { text: "Violent Showers", icon: "cloud-lightning" },
+                95: { text: "Thunderstorm", icon: "zap" }
+            };
+            return map[code] || { text: "Clear", icon: "sun" };
+        }
+
+        function updateFavCountBadge() {
+            const badge = document.getElementById('favCountBadge');
+            if (favCities.length > 0) {
+                badge.textContent = favCities.length;
+                badge.classList.remove('hidden');
+            } else {
+                badge.classList.add('hidden');
+            }
+        }
+
+        function updateFavStarIcon() {
+            const icon = document.getElementById('favStarIcon');
+            if (!currentCityData) return;
+            
+            const isFav = favCities.some(c => c.name.toLowerCase() === currentCityData.name.toLowerCase());
+            if (isFav) {
+                icon.setAttribute('fill', '#f59e0b');
+                icon.classList.add('text-amber-500');
+            } else {
+                icon.removeAttribute('fill');
+                icon.classList.remove('text-amber-500');
+            }
+        }
+
+        function toggleCurrentFavorite() {
+            if (!currentCityData) return;
+            
+            const idx = favCities.findIndex(c => c.name.toLowerCase() === currentCityData.name.toLowerCase());
+            if (idx >= 0) {
+                favCities.splice(idx, 1);
+            } else {
+                favCities.push(currentCityData);
+            }
+
+            localStorage.setItem('clarity_fav_cities', JSON.stringify(favCities));
+            updateFavCountBadge();
+            updateFavStarIcon();
+            renderFavList();
+        }
+
+        function openFavDrawer() {
+            renderFavList();
+            document.getElementById('favDrawer').classList.remove('hidden');
+        }
+
+        function closeFavDrawer() {
+            document.getElementById('favDrawer').classList.add('hidden');
+        }
+
+        function renderFavList() {
+            const container = document.getElementById('favListContainer');
+            if (favCities.length === 0) {
+                container.innerHTML = `<p class="text-xs text-slate-400 italic text-center py-8">No saved cities yet. Click the star icon to save your favorite locations.</p>`;
+                return;
+            }
+
+            container.innerHTML = favCities.map(city => `
+                <div class="p-4 rounded-2xl bg-slate-100 dark:bg-slate-800/80 border border-slate-200/60 dark:border-slate-700/60 flex items-center justify-between hover:border-sky-500/50 transition-colors">
+                    <div onclick='selectFavCity(${JSON.stringify(city).replace(/'/g, "&apos;")})' class="cursor-pointer flex-1">
+                        <h4 class="font-bold text-sm text-slate-900 dark:text-white">${city.name}</h4>
+                        <p class="text-xs text-slate-400">${city.country || city.admin1 || ''}</p>
+                    </div>
+                    <button onclick='removeFavCity("${city.name}")' class="p-2 text-slate-400 hover:text-red-500 transition-colors">
+                        <i data-lucide="trash-2" class="w-4 h-4"></i>
+                    </button>
+                </div>
+            `).join('');
+
+            lucide.createIcons();
+        }
+
+        function selectFavCity(city) {
+            closeFavDrawer();
+            loadCityData(city);
+        }
+
+        function removeFavCity(cityName) {
+            favCities = favCities.filter(c => c.name.toLowerCase() !== cityName.toLowerCase());
+            localStorage.setItem('clarity_fav_cities', JSON.stringify(favCities));
+            updateFavCountBadge();
+            updateFavStarIcon();
+            renderFavList();
+        }
+
+        function openCompareModal() {
+            document.getElementById('compareModal').classList.remove('hidden');
+            if (compareCitiesList.length === 0 && currentCityData) {
+                compareCitiesList.push(currentCityData);
+            }
+            renderCompareTable();
+        }
+
+        function closeCompareModal() {
+            document.getElementById('compareModal').classList.add('hidden');
+        }
+
+        async function handleAddCompareCity() {
+            const input = document.getElementById('compareSearchInput');
+            const query = input.value.trim();
+            if (!query) return;
+
+            try {
+                const res = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(query)}&count=1`);
+                const data = await res.json();
+                if (data.results && data.results.length > 0) {
+                    const c = data.results[0];
+                    compareCitiesList.push({ name: c.name, country: c.country || '', latitude: c.latitude, longitude: c.longitude });
+                    input.value = '';
+                    renderCompareTable();
+                } else {
+                    alert("City not found.");
+                }
+            } catch (err) {
+                alert("Error finding city.");
+            }
+        }
+
+        async function renderCompareTable() {
+            const container = document.getElementById('compareTableContainer');
+            if (compareCitiesList.length === 0) {
+                container.innerHTML = `<p class="text-xs text-slate-500 italic text-center py-8">No comparison cities added yet. Type a city name above to compare.</p>`;
+                return;
+            }
+
+            container.innerHTML = `<p class="text-xs text-sky-500 font-semibold text-center py-4">Fetching comparison data...</p>`;
+
+            // Fetch data for all compared cities
+            const unitTemp = currentUnits === 'metric' ? 'celsius' : 'fahrenheit';
+            const unitWind = currentUnits === 'metric' ? 'kmh' : 'mph';
+
+            const promises = compareCitiesList.map(c => 
+                fetch(`https://api.open-meteo.com/v1/forecast?latitude=${c.latitude}&longitude=${c.longitude}&current=temperature_2m,apparent_temperature,relative_humidity_2m,wind_speed_10m,weather_code&hourly=uv_index,precipitation_probability&temperature_unit=${unitTemp}&wind_speed_unit=${unitWind}&timezone=auto`)
+                .then(r => r.json())
+            );
+
+            try {
+                const results = await Promise.all(promises);
+
+                container.innerHTML = `
+                    <table class="w-full text-left text-xs text-slate-700 dark:text-slate-200">
+                        <thead>
+                            <tr class="border-b border-slate-200 dark:border-slate-800">
+                                <th class="p-3 font-bold">Metric</th>
+                                ${compareCitiesList.map((c, i) => `
+                                    <th class="p-3 font-bold text-slate-900 dark:text-white">
+                                        <div class="flex items-center justify-between">
+                                            <span>${c.name}</span>
+                                            <button onclick="removeCompareCity(${i})" class="text-slate-400 hover:text-red-500"><i data-lucide="x" class="w-3.5 h-3.5"></i></button>
+                                        </div>
+                                    </th>
+                                `).join('')}
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-100 dark:divide-slate-800/60">
+                            <tr>
+                                <td class="p-3 font-semibold text-slate-400">Temp / Feels Like</td>
+                                ${results.map(r => `<td class="p-3 font-bold text-slate-900 dark:text-white">${Math.round(r.current.temperature_2m)}° (Feels ${Math.round(r.current.apparent_temperature)}°)</td>`).join('')}
+                            </tr>
+                            <tr>
+                                <td class="p-3 font-semibold text-slate-400">Condition</td>
+                                ${results.map(r => `<td class="p-3 font-medium">${getWmoInfo(r.current.weather_code).text}</td>`).join('')}
+                            </tr>
+                            <tr>
+                                <td class="p-3 font-semibold text-slate-400">Rain Prob %</td>
+                                ${results.map(r => `<td class="p-3 font-bold text-blue-500">${r.hourly.precipitation_probability ? r.hourly.precipitation_probability[0] : 0}%</td>`).join('')}
+                            </tr>
+                            <tr>
+                                <td class="p-3 font-semibold text-slate-400">Wind Speed</td>
+                                ${results.map(r => `<td class="p-3">${Math.round(r.current.wind_speed_10m)} ${currentUnits==='metric'?'km/h':'mph'} (${decodeWind(r.current.wind_speed_10m).category})</td>`).join('')}
+                            </tr>
+                            <tr>
+                                <td class="p-3 font-semibold text-slate-400">UV Index</td>
+                                ${results.map(r => `<td class="p-3">${r.hourly.uv_index ? r.hourly.uv_index[0].toFixed(1) : '0'} (${decodeUv(r.hourly.uv_index ? r.hourly.uv_index[0] : 0).category})</td>`).join('')}
+                            </tr>
+                        </tbody>
+                    </table>
+                `;
+                lucide.createIcons();
+            } catch (err) {
+                container.innerHTML = `<p class="text-xs text-red-500 text-center py-4">Error loading comparison data.</p>`;
+            }
+        }
+
+        function removeCompareCity(idx) {
+            compareCitiesList.splice(idx, 1);
+            renderCompareTable();
+        }
+
+        function openAiModal() {
+            document.getElementById('aiModal').classList.remove('hidden');
+        }
+
+        function closeAiModal() {
+            document.getElementById('aiModal').classList.add('hidden');
+        }
+
+        function askAiQuestion(qText) {
+            document.getElementById('aiCustomPrompt').value = qText;
+            submitCustomAiPrompt();
+        }
+
+        async function submitCustomAiPrompt() {
+            const promptInput = document.getElementById('aiCustomPrompt');
+            const promptText = promptInput.value.trim();
+            if (!promptText) return;
+
+            const responseBox = document.getElementById('aiResponseBox');
+            const sendBtn = document.getElementById('aiSendBtn');
+
+            responseBox.innerHTML = `
+                <div class="flex items-center gap-2 text-sky-500 font-semibold text-xs animate-pulse">
+                    <i data-lucide="sparkles" class="w-4 h-4"></i>
+                    <span>Consulting Gemini AI Weather Intelligence...</span>
+                </div>
+            `;
+            sendBtn.disabled = true;
+
+            const systemPrompt = `You are a world-class, friendly weather analyst who translates raw weather data into simple, conversational human advice.
+Current Location: ${currentCityData.name}, ${currentCityData.country}
+Current Weather Summary: Temp ${Math.round(weatherData.current.temperature_2m)}°C, Feels like ${Math.round(weatherData.current.apparent_temperature)}°C, Humidity ${weatherData.current.relative_humidity_2m}%, Wind ${Math.round(weatherData.current.wind_speed_10m)} km/h.
+Provide plain-English, actionable, helpful advice to the user's question. Keep it concise (2-4 bullet points or short paragraphs).`;
+
+            const apiKey = ""; // Canvas runtime injection
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
+
+            try {
+                const res = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        contents: [{ parts: [{ text: promptText }] }],
+                        systemInstruction: { parts: [{ text: systemPrompt }] }
+                    })
+                });
+
+                const data = await res.json();
+                const aiText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+
+                if (aiText) {
+                    responseBox.innerHTML = `
+                        <div class="space-y-2">
+                            <p class="text-xs font-bold text-sky-500 flex items-center gap-1">
+                                <i data-lucide="bot" class="w-4 h-4"></i>
+                                Gemini Weather AI Analysis:
+                            </p>
+                            <div class="text-xs leading-relaxed text-slate-800 dark:text-slate-200 space-y-2">
+                                ${aiText.replace(/\n/g, '<br>')}
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    responseBox.innerHTML = `<p class="text-xs text-amber-500">Could not generate AI briefing right now. Standard data displays remain fully accurate above.</p>`;
+                }
+            } catch (err) {
+                responseBox.innerHTML = `<p class="text-xs text-amber-500">AI connection unavailable. Please check internet connection.</p>`;
+            } finally {
+                sendBtn.disabled = false;
+                lucide.createIcons();
+            }
+        }
+    </script>
+</body>
+</html>
